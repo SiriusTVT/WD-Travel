@@ -14,7 +14,7 @@ export const Admin: React.FC = () => {
 
   // Estado para Escalas
   const [hasLayover, setHasLayover] = useState<boolean>(false);
-  const [layoverRoute, setLayoverRoute] = useState<string>('');
+  const [layovers, setLayovers] = useState<string[]>(['']);
 
   const [newBooking, setNewBooking] = useState({
     purchaseDate: new Date().toISOString().split('T')[0],
@@ -33,10 +33,7 @@ export const Admin: React.FC = () => {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Determinar la ruta final según si tiene escalas o no
-    const finalRoute = hasLayover && layoverRoute.trim() !== ''
-      ? layoverRoute
-      : `${origin} ➔ ${destination}`;
+    const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
 
     const created: Booking = {
       id: Date.now().toString(),
@@ -51,7 +48,7 @@ export const Admin: React.FC = () => {
     setOrigin('');
     setDestination('');
     setHasLayover(false);
-    setLayoverRoute('');
+    setLayovers(['']);
     setNewBooking({
       purchaseDate: new Date().toISOString().split('T')[0],
       passenger: '',
@@ -133,7 +130,7 @@ export const Admin: React.FC = () => {
                 <td style={{ padding: '14px' }}>{b.airline}</td>
                 <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
                 <td style={{ padding: '14px' }}>
-                  <button
+                  <button 
                     onClick={() => setSelectedPassenger(b)}
                     style={{ padding: '6px 14px', backgroundColor: '#f3f4f6', color: '#2D60A8', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
                   >
@@ -158,7 +155,7 @@ export const Admin: React.FC = () => {
             <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
             <p><strong>Aerolínea:</strong> {selectedPassenger.airline}</p>
             <p><strong>Método de Pago:</strong> {selectedPassenger.paymentMethod}</p>
-            <button
+            <button 
               onClick={() => setSelectedPassenger(null)}
               style={{ marginTop: '20px', width: '100%', padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
             >
@@ -173,7 +170,7 @@ export const Admin: React.FC = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '720px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>➕ Registrar Cliente / Venta Manual</h3>
-
+            
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                 <div>
@@ -207,42 +204,62 @@ export const Admin: React.FC = () => {
                 </label>
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                   <label style={{ cursor: 'pointer', fontWeight: '600' }}>
-                    <input
-                      type="radio"
-                      name="layover"
-                      checked={!hasLayover}
-                      onChange={() => setHasLayover(false)}
-                      style={{ marginRight: '6px' }}
+                    <input 
+                      type="radio" 
+                      name="layover" 
+                      checked={!hasLayover} 
+                      onChange={() => setHasLayover(false)} 
+                      style={{ marginRight: '6px' }} 
                     />
                     No (Vuelo Directo)
                   </label>
                   <label style={{ cursor: 'pointer', fontWeight: '600' }}>
-                    <input
-                      type="radio"
-                      name="layover"
-                      checked={hasLayover}
-                      onChange={() => setHasLayover(true)}
-                      style={{ marginRight: '6px' }}
+                    <input 
+                      type="radio" 
+                      name="layover" 
+                      checked={hasLayover} 
+                      onChange={() => setHasLayover(true)} 
+                      style={{ marginRight: '6px' }} 
                     />
                     Sí (Con Escalas)
                   </label>
                 </div>
 
                 {hasLayover && (
-                  <div style={{ marginTop: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px', color: '#9a3412' }}>
-                      Especificar Ruta de Conexión / Escalas:
+                  <div style={{ marginTop: '12px' }}>
+                    <label htmlFor="layover-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px', color: '#9a3412' }}>
+                      Cantidad de escalas:
                     </label>
-                    <input
-                      required={hasLayover}
-                      type="text"
-                      placeholder="Ej: CLO - BOG - MAD - LPA"
-                      value={layoverRoute}
-                      onChange={e => setLayoverRoute(e.target.value)}
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
-                    />
+                    <select
+                      id="layover-count"
+                      value={layovers.length}
+                      onChange={e => {
+                        const count = Number(e.target.value);
+                        setLayovers(current => Array.from({ length: count }, (_, index) => current[index] ?? ''));
+                      }}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', marginBottom: '10px' }}
+                    >
+                      {Array.from({ length: 10 }, (_, index) => index + 1).map(count => (
+                        <option key={count} value={count}>{count}</option>
+                      ))}
+                    </select>
+
+                    {layovers.map((layover, index) => (
+                      <div key={index} style={{ padding: '10px', marginBottom: '8px', backgroundColor: '#fff', borderRadius: '6px' }}>
+                        <LocationSelector
+                          labelPrefix={`Escala ${index + 1}`}
+                          value={layover}
+                          onChange={value => setLayovers(current => current.map((stop, stopIndex) => stopIndex === index ? value : stop))}
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
+
+                <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#fff', borderRadius: '6px', color: '#374151' }}>
+                  <strong>Ruta completa:</strong>{' '}
+                  {[origin || 'Origen', ...(hasLayover ? layovers.map((stop, index) => stop || `Escala ${index + 1}`) : []), destination || 'Destino'].join(' ➔ ')}
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>

@@ -74,6 +74,15 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
     ]
   },
   {
+    country: "Chile",
+    cities: [
+      "Santiago (SCL)",
+      "Calama (CJC)",
+      "Puerto Montt (PMC)",
+      "Punta Arenas (PUQ)"
+    ]
+  },
+  {
     country: "Panamá",
     cities: [
       "Ciudad de Panamá (PTY)"
