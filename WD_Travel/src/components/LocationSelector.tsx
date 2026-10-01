@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { COUNTRIES_AND_CITIES } from '../data/locations';
 
 interface LocationSelectorProps {
@@ -8,15 +8,14 @@ interface LocationSelectorProps {
   required?: boolean;
 }
 
-export const LocationSelector: React.FC<LocationSelectorProps> = ({ labelPrefix, onChange, required = true }) => {
-  const [selectedCountry, setSelectedCountry] = useState<string>('');
+export const LocationSelector: React.FC<LocationSelectorProps> = ({ labelPrefix, value, onChange, required = true }) => {
+  const [selectedCountry, selectedCity = ''] = value.split(' - ');
 
   const selectedCountryObj = COUNTRIES_AND_CITIES.find(c => c.country === selectedCountry);
 
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const country = e.target.value;
-    setSelectedCountry(country);
-    onChange(''); // Reiniciar la ciudad al cambiar el país
+    onChange(country ? `${country} - ` : ''); // Reiniciar la ciudad al cambiar el país
   };
 
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -49,9 +48,10 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ labelPrefix,
         <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151', fontSize: '0.9rem' }}>
           Ciudad / Aeropuerto {labelPrefix}:
         </label>
-        <select
+          <select
           required={required}
           disabled={!selectedCountry}
+            value={selectedCity}
           onChange={handleCityChange}
           style={{
             width: '100%',

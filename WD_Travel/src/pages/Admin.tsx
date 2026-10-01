@@ -7,6 +7,7 @@ export const Admin: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
 
   // Estados de ubicación
   const [origin, setOrigin] = useState('');
@@ -30,21 +31,7 @@ export const Admin: React.FC = () => {
     paymentMethod: 'TRANSFERENCIA'
   });
 
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
-
-    const created: Booking = {
-      id: Date.now().toString(),
-      route: finalRoute,
-      ...newBooking
-    };
-
-    setBookings([created, ...bookings]);
-    setShowAddModal(false);
-
-    // Reiniciar formulario
+  const resetForm = () => {
     setOrigin('');
     setDestination('');
     setHasLayover(false);
@@ -62,6 +49,61 @@ export const Admin: React.FC = () => {
       airline: '',
       paymentMethod: 'TRANSFERENCIA'
     });
+  };
+
+  const handleEditClick = (booking: Booking) => {
+    const routeParts = booking.route.split(' ➔ ');
+    setOrigin(routeParts[0] || '');
+    setDestination(routeParts[routeParts.length - 1] || '');
+    setHasLayover(routeParts.length > 2);
+    setLayovers(routeParts.length > 2 ? routeParts.slice(1, -1) : ['']);
+    setNewBooking({
+      purchaseDate: booking.purchaseDate,
+      passenger: booking.passenger,
+      phone: booking.phone,
+      cedula: booking.cedula,
+      bookingCode: booking.bookingCode,
+      travelDate: booking.travelDate,
+      returnDate: booking.returnDate,
+      isTicket: booking.isTicket,
+      isPackage: booking.isPackage,
+      airline: booking.airline,
+      paymentMethod: booking.paymentMethod
+    });
+    setEditingBookingId(booking.id);
+    setShowAddModal(true);
+  };
+
+  const handleDeleteClick = (booking: Booking) => {
+    const shouldDelete = window.confirm(`¿Deseas eliminar el registro de ${booking.passenger}?`);
+    if (!shouldDelete) return;
+
+    setBookings(currentBookings => currentBookings.filter(currentBooking => currentBooking.id !== booking.id));
+    setSelectedPassenger(currentPassenger => currentPassenger?.id === booking.id ? null : currentPassenger);
+  };
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
+
+    if (editingBookingId) {
+      setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
+        ? { id: booking.id, route: finalRoute, ...newBooking }
+        : booking
+      ));
+    } else {
+      const created: Booking = {
+        id: Date.now().toString(),
+        route: finalRoute,
+        ...newBooking
+      };
+      setBookings(currentBookings => [created, ...currentBookings]);
+    }
+
+    setShowAddModal(false);
+    setEditingBookingId(null);
+    resetForm();
   };
 
   const filteredBookings = bookings.filter(b =>
@@ -136,6 +178,18 @@ export const Admin: React.FC = () => {
                   >
                     Ver Perfil
                   </button>
+                  <button
+                    onClick={() => handleEditClick(b)}
+                    style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(b)}
+                    style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Eliminar
+                  </button>
                 </td>
               </tr>
             ))}
@@ -165,11 +219,11 @@ export const Admin: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Registrar Nueva Venta Manual con Filtro de Ubicación y Escalas */}
+      {/* Modal: Registrar o editar venta manual */}
       {showAddModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '720px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>➕ Registrar Cliente / Venta Manual</h3>
+            <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>{editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}</h3>
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
@@ -295,9 +349,9 @@ export const Admin: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Guardar Venta
+                  {editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
                 </button>
-                <button type="button" onClick={() => setShowAddModal(false)} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   Cancelar
                 </button>
               </div>
