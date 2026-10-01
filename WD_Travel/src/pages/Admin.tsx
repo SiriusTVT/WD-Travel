@@ -128,6 +128,11 @@ export const Admin: React.FC = () => {
   );
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
+  const formatAmountInput = (amount: number | '') => amount === '' ? '' : amount.toLocaleString('es-CO');
+  const parseAmountInput = (value: string): number | '' => {
+    const digits = value.replace(/\D/g, '');
+    return digits ? Number(digits) : '';
+  };
   const formTotalValue = Number(newBooking.totalValue) || 0;
   const formPaidAmount = Number(newBooking.paidAmount) || 0;
 
@@ -383,8 +388,8 @@ export const Admin: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Valor Total (COP):</label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
                     <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
-                    <input type="number" min="0" step="100" required value={newBooking.totalValue} onChange={e => {
-                    const totalValue = e.target.value === '' ? '' : Number(e.target.value);
+                    <input type="text" inputMode="numeric" required value={formatAmountInput(newBooking.totalValue)} onChange={e => {
+                    const totalValue = parseAmountInput(e.target.value);
                     const numericTotalValue = Number(totalValue) || 0;
                     setNewBooking({ ...newBooking, totalValue, paidAmount: newBooking.paymentStatus === 'PAGADO' ? numericTotalValue : Math.min(Number(newBooking.paidAmount) || 0, numericTotalValue) });
                     }} style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }} />
@@ -413,14 +418,13 @@ export const Admin: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
                     <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
                     <input
-                      type="number"
-                      min="0"
-                      max={formTotalValue}
-                      step="100"
+                      type="text"
+                      inputMode="numeric"
                       required
-                      value={newBooking.paidAmount}
+                      value={formatAmountInput(newBooking.paidAmount)}
                       onChange={e => {
-                        const paidAmount = e.target.value === '' ? '' : Math.min(formTotalValue, Math.max(0, Number(e.target.value)));
+                        const parsedAmount = parseAmountInput(e.target.value);
+                        const paidAmount = parsedAmount === '' ? '' : Math.min(formTotalValue, parsedAmount);
                         setNewBooking({ ...newBooking, paidAmount });
                       }}
                       style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }}
