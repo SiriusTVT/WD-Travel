@@ -28,7 +28,10 @@ export const Admin: React.FC = () => {
     isTicket: false,
     isPackage: true,
     airline: '',
-    paymentMethod: 'TRANSFERENCIA'
+    paymentMethod: 'TRANSFERENCIA',
+    totalValue: 0 as number | '',
+    paymentStatus: 'PENDIENTE',
+    paidAmount: 0 as number | ''
   });
 
   const resetForm = () => {
@@ -47,7 +50,10 @@ export const Admin: React.FC = () => {
       isTicket: false,
       isPackage: true,
       airline: '',
-      paymentMethod: 'TRANSFERENCIA'
+      paymentMethod: 'TRANSFERENCIA',
+      totalValue: 0 as number | '',
+      paymentStatus: 'PENDIENTE',
+      paidAmount: 0 as number | ''
     });
   };
 
@@ -68,7 +74,10 @@ export const Admin: React.FC = () => {
       isTicket: booking.isTicket,
       isPackage: booking.isPackage,
       airline: booking.airline,
-      paymentMethod: booking.paymentMethod
+      paymentMethod: booking.paymentMethod,
+      totalValue: booking.totalValue,
+      paymentStatus: booking.paymentStatus,
+      paidAmount: booking.paidAmount
     });
     setEditingBookingId(booking.id);
     setShowAddModal(true);
@@ -86,17 +95,23 @@ export const Admin: React.FC = () => {
     e.preventDefault();
 
     const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
+    const totalValue = Number(newBooking.totalValue);
+      const bookingData = {
+        ...newBooking,
+        totalValue,
+        paidAmount: newBooking.paymentStatus === 'PAGADO' ? totalValue : Math.min(Number(newBooking.paidAmount) || 0, totalValue)
+      };
 
     if (editingBookingId) {
       setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
-        ? { id: booking.id, route: finalRoute, ...newBooking }
+        ? { id: booking.id, route: finalRoute, ...bookingData }
         : booking
       ));
     } else {
       const created: Booking = {
         id: Date.now().toString(),
         route: finalRoute,
-        ...newBooking
+        ...bookingData
       };
       setBookings(currentBookings => [created, ...currentBookings]);
     }
@@ -111,6 +126,10 @@ export const Admin: React.FC = () => {
     b.phone.includes(search) ||
     b.cedula.includes(search)
   );
+
+  const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
+  const formTotalValue = Number(newBooking.totalValue) || 0;
+  const formPaidAmount = Number(newBooking.paidAmount) || 0;
 
   return (
     <div style={{ padding: '30px 40px', maxWidth: '100%', width: '100%' }}>
@@ -155,6 +174,10 @@ export const Admin: React.FC = () => {
               <th style={{ padding: '14px' }}>TIPO</th>
               <th style={{ padding: '14px' }}>AEROLÍNEA</th>
               <th style={{ padding: '14px' }}>PAGO</th>
+              <th style={{ padding: '14px' }}>VALOR TOTAL</th>
+              <th style={{ padding: '14px' }}>ABONADO</th>
+              <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
+              <th style={{ padding: '14px' }}>ESTADO DEL PAGO</th>
               <th style={{ padding: '14px' }}>ACCIONES</th>
             </tr>
           </thead>
@@ -171,6 +194,10 @@ export const Admin: React.FC = () => {
                 <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
                 <td style={{ padding: '14px' }}>{b.airline}</td>
                 <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
+                <td style={{ padding: '14px' }}>{formatCurrency(b.totalValue)}</td>
+                <td style={{ padding: '14px' }}>{formatCurrency(b.paidAmount)}</td>
+                <td style={{ padding: '14px', color: b.totalValue - b.paidAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{formatCurrency(Math.max(0, b.totalValue - b.paidAmount))}</td>
+                <td style={{ padding: '14px', color: b.paymentStatus === 'PAGADO' ? '#16a34a' : '#dc2626', fontWeight: 'bold' }}>{b.paymentStatus}</td>
                 <td style={{ padding: '14px' }}>
                   <button 
                     onClick={() => setSelectedPassenger(b)}
@@ -209,6 +236,10 @@ export const Admin: React.FC = () => {
             <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
             <p><strong>Aerolínea:</strong> {selectedPassenger.airline}</p>
             <p><strong>Método de Pago:</strong> {selectedPassenger.paymentMethod}</p>
+            <p><strong>Valor Total:</strong> {formatCurrency(selectedPassenger.totalValue)}</p>
+            <p><strong>Valor Abonado:</strong> {formatCurrency(selectedPassenger.paidAmount)}</p>
+            <p><strong>Saldo Pendiente:</strong> {formatCurrency(Math.max(0, selectedPassenger.totalValue - selectedPassenger.paidAmount))}</p>
+            <p><strong>Estado del Pago:</strong> {selectedPassenger.paymentStatus}</p>
             <button 
               onClick={() => setSelectedPassenger(null)}
               style={{ marginTop: '20px', width: '100%', padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -346,6 +377,61 @@ export const Admin: React.FC = () => {
                   <option value="TARJETA">TARJETA</option>
                 </select>
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Valor Total (COP):</label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
+                    <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
+                    <input type="number" min="0" step="100" required value={newBooking.totalValue} onChange={e => {
+                    const totalValue = e.target.value === '' ? '' : Number(e.target.value);
+                    const numericTotalValue = Number(totalValue) || 0;
+                    setNewBooking({ ...newBooking, totalValue, paidAmount: newBooking.paymentStatus === 'PAGADO' ? numericTotalValue : Math.min(Number(newBooking.paidAmount) || 0, numericTotalValue) });
+                    }} style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Estado del Pago:</label>
+                  <select required value={newBooking.paymentStatus} onChange={e => {
+                    const paymentStatus = e.target.value;
+                    setNewBooking({
+                      ...newBooking,
+                      paymentStatus,
+                      paidAmount: paymentStatus === 'PAGADO' ? formTotalValue : paymentStatus === 'PENDIENTE' ? 0 : newBooking.paidAmount
+                    });
+                  }} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                    <option value="PENDIENTE">PENDIENTE</option>
+                    <option value="ABONADO">ABONADO</option>
+                    <option value="PAGADO">PAGADO</option>
+                  </select>
+                </div>
+              </div>
+
+              {newBooking.paymentStatus === 'ABONADO' && (
+                <div style={{ padding: '12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad Abonada (COP):</label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
+                    <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={formTotalValue}
+                      step="100"
+                      required
+                      value={newBooking.paidAmount}
+                      onChange={e => {
+                        const paidAmount = e.target.value === '' ? '' : Math.min(formTotalValue, Math.max(0, Number(e.target.value)));
+                        setNewBooking({ ...newBooking, paidAmount });
+                      }}
+                      style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontWeight: 'bold' }}>
+                    <span>Abonado: {formatCurrency(formPaidAmount)}</span>
+                    <span style={{ color: '#dc2626' }}>Falta: {formatCurrency(Math.max(0, formTotalValue - formPaidAmount))}</span>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>

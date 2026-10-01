@@ -12,6 +12,9 @@ export interface Booking {
   isPackage: boolean;
   airline: string;
   paymentMethod: string;
+  totalValue: number;
+  paymentStatus: string;
+  paidAmount: number;
 }
 
 export const MOCK_BOOKINGS: Booking[] = [
@@ -28,7 +31,10 @@ export const MOCK_BOOKINGS: Booking[] = [
     isTicket: false,
     isPackage: true,
     airline: "JET SMART",
-    paymentMethod: "TRANSFERENCIA"
+    paymentMethod: "TRANSFERENCIA",
+    totalValue: 0,
+    paymentStatus: "PENDIENTE",
+    paidAmount: 0
   },
   {
     id: "2",
@@ -43,6 +49,9 @@ export const MOCK_BOOKINGS: Booking[] = [
     isTicket: true,
     isPackage: false,
     airline: "IBERIA",
-    paymentMethod: "EFECTIVO"
+    paymentMethod: "EFECTIVO",
+    totalValue: 0,
+    paymentStatus: "PENDIENTE",
+    paidAmount: 0
   }
 ];
