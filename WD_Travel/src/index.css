@@ -1,0 +1,30 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f4f7fe;
+  color: #2b2d42;
+  width: 100vw;
+  overflow-x: hidden;
+}
+
+input, select, button, textarea {
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+input {
+  background-color: #ffffff !important;
+  color: #333333 !important;
+  border: 1px solid #d1d5db;
+}
+
+input::placeholder {
+  color: #9ca3af;
+}

@@ -1,0 +1,293 @@
+import React, { useState } from 'react';
+import { MOCK_BOOKINGS, type Booking } from '../data/mockData';
+import { LocationSelector } from '../components/LocationSelector';
+
+export const Admin: React.FC = () => {
+  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
+  const [search, setSearch] = useState('');
+  const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Estados de ubicación
+  const [origin, setOrigin] = useState('');
+  const [destination, setDestination] = useState('');
+
+  // Estado para Escalas
+  const [hasLayover, setHasLayover] = useState<boolean>(false);
+  const [layoverRoute, setLayoverRoute] = useState<string>('');
+
+  const [newBooking, setNewBooking] = useState({
+    purchaseDate: new Date().toISOString().split('T')[0],
+    passenger: '',
+    phone: '',
+    cedula: '',
+    bookingCode: '',
+    travelDate: '',
+    returnDate: '',
+    isTicket: false,
+    isPackage: true,
+    airline: '',
+    paymentMethod: 'TRANSFERENCIA'
+  });
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Determinar la ruta final según si tiene escalas o no
+    const finalRoute = hasLayover && layoverRoute.trim() !== ''
+      ? layoverRoute
+      : `${origin} ➔ ${destination}`;
+
+    const created: Booking = {
+      id: Date.now().toString(),
+      route: finalRoute,
+      ...newBooking
+    };
+
+    setBookings([created, ...bookings]);
+    setShowAddModal(false);
+
+    // Reiniciar formulario
+    setOrigin('');
+    setDestination('');
+    setHasLayover(false);
+    setLayoverRoute('');
+    setNewBooking({
+      purchaseDate: new Date().toISOString().split('T')[0],
+      passenger: '',
+      phone: '',
+      cedula: '',
+      bookingCode: '',
+      travelDate: '',
+      returnDate: '',
+      isTicket: false,
+      isPackage: true,
+      airline: '',
+      paymentMethod: 'TRANSFERENCIA'
+    });
+  };
+
+  const filteredBookings = bookings.filter(b =>
+    b.passenger.toLowerCase().includes(search.toLowerCase()) ||
+    b.phone.includes(search) ||
+    b.cedula.includes(search)
+  );
+
+  return (
+    <div style={{ padding: '30px 40px', maxWidth: '100%', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+        <div>
+          <h2 style={{ color: '#2D60A8', margin: 0, fontSize: '1.8rem' }}>
+            📋 Panel de Administración - WD Travel
+          </h2>
+          <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Gestión centralizada de reservas y clientes</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          style={{ padding: '12px 24px', backgroundColor: '#2D60A8', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(45,96,168,0.2)' }}
+        >
+          ➕ Registrar Cliente / Venta (WhatsApp)
+        </button>
+      </div>
+
+      {/* Buscador */}
+      <div style={{ marginBottom: '20px' }}>
+        <input
+          type="text"
+          placeholder="🔍 Buscar cliente por Nombre, Cédula o Celular..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #d1d5db', fontSize: '1rem' }}
+        />
+      </div>
+
+      {/* Tabla estilo Excel */}
+      <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#2D60A8', color: '#fff' }}>
+              <th style={{ padding: '14px' }}>FECHA COMPRA</th>
+              <th style={{ padding: '14px' }}>PASAJERO</th>
+              <th style={{ padding: '14px' }}>CELULAR</th>
+              <th style={{ padding: '14px' }}>RUTA</th>
+              <th style={{ padding: '14px' }}>COD RESERVA</th>
+              <th style={{ padding: '14px' }}>FECHA VIAJE</th>
+              <th style={{ padding: '14px' }}>FECHA REGRESO</th>
+              <th style={{ padding: '14px' }}>TIPO</th>
+              <th style={{ padding: '14px' }}>AEROLÍNEA</th>
+              <th style={{ padding: '14px' }}>PAGO</th>
+              <th style={{ padding: '14px' }}>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredBookings.map((b) => (
+              <tr key={b.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '14px' }}>{b.purchaseDate}</td>
+                <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>{b.passenger}</td>
+                <td style={{ padding: '14px' }}>{b.phone}</td>
+                <td style={{ padding: '14px' }}>{b.route}</td>
+                <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
+                <td style={{ padding: '14px' }}>{b.travelDate}</td>
+                <td style={{ padding: '14px' }}>{b.returnDate}</td>
+                <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
+                <td style={{ padding: '14px' }}>{b.airline}</td>
+                <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
+                <td style={{ padding: '14px' }}>
+                  <button
+                    onClick={() => setSelectedPassenger(b)}
+                    style={{ padding: '6px 14px', backgroundColor: '#f3f4f6', color: '#2D60A8', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Ver Perfil
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal: Perfil Detallado */}
+      {selectedPassenger && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '500px', width: '90%' }}>
+            <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>👤 Perfil del Cliente</h3>
+            <p style={{ marginTop: '15px' }}><strong>Nombre:</strong> {selectedPassenger.passenger}</p>
+            <p><strong>Cédula:</strong> {selectedPassenger.cedula || 'No registrada'}</p>
+            <p><strong>Celular / WhatsApp:</strong> {selectedPassenger.phone}</p>
+            <p><strong>Ruta:</strong> {selectedPassenger.route}</p>
+            <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
+            <p><strong>Aerolínea:</strong> {selectedPassenger.airline}</p>
+            <p><strong>Método de Pago:</strong> {selectedPassenger.paymentMethod}</p>
+            <button
+              onClick={() => setSelectedPassenger(null)}
+              style={{ marginTop: '20px', width: '100%', padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar Nueva Venta Manual con Filtro de Ubicación y Escalas */}
+      {showAddModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '720px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>➕ Registrar Cliente / Venta Manual</h3>
+
+            <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombre Pasajero:</label>
+                  <input required type="text" value={newBooking.passenger} onChange={e => setNewBooking({...newBooking, passenger: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cédula:</label>
+                  <input required type="text" value={newBooking.cedula} onChange={e => setNewBooking({...newBooking, cedula: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Celular:</label>
+                  <input required type="text" value={newBooking.phone} onChange={e => setNewBooking({...newBooking, phone: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+              </div>
+
+              {/* Origen */}
+              <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />
+              </div>
+
+              {/* Destino */}
+              <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
+              </div>
+
+              {/* Opción de Escalas */}
+              <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#9a3412', marginBottom: '8px' }}>
+                  ¿El vuelo tiene escalas / conexiones?:
+                </label>
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                  <label style={{ cursor: 'pointer', fontWeight: '600' }}>
+                    <input
+                      type="radio"
+                      name="layover"
+                      checked={!hasLayover}
+                      onChange={() => setHasLayover(false)}
+                      style={{ marginRight: '6px' }}
+                    />
+                    No (Vuelo Directo)
+                  </label>
+                  <label style={{ cursor: 'pointer', fontWeight: '600' }}>
+                    <input
+                      type="radio"
+                      name="layover"
+                      checked={hasLayover}
+                      onChange={() => setHasLayover(true)}
+                      style={{ marginRight: '6px' }}
+                    />
+                    Sí (Con Escalas)
+                  </label>
+                </div>
+
+                {hasLayover && (
+                  <div style={{ marginTop: '10px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px', color: '#9a3412' }}>
+                      Especificar Ruta de Conexión / Escalas:
+                    </label>
+                    <input
+                      required={hasLayover}
+                      type="text"
+                      placeholder="Ej: CLO - BOG - MAD - LPA"
+                      value={layoverRoute}
+                      onChange={e => setLayoverRoute(e.target.value)}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Código Reserva:</label>
+                  <input type="text" placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Aerolínea:</label>
+                  <input type="text" placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Viaje:</label>
+                  <input type="date" value={newBooking.travelDate} onChange={e => setNewBooking({...newBooking, travelDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Regreso:</label>
+                  <input type="date" value={newBooking.returnDate} onChange={e => setNewBooking({...newBooking, returnDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Método de Pago:</label>
+                <select value={newBooking.paymentMethod} onChange={e => setNewBooking({...newBooking, paymentMethod: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                  <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                  <option value="EFECTIVO">EFECTIVO</option>
+                  <option value="TARJETA">TARJETA</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Guardar Venta
+                </button>
+                <button type="button" onClick={() => setShowAddModal(false)} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
