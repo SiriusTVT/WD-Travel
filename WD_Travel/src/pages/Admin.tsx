@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
-import { MOCK_BOOKINGS, type Booking } from '../data/mockData';
+import { type Booking, type Passenger } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { formatDisplayDate } from '../formatDate';
 
-export const Admin: React.FC = () => {
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
+interface AdminProps {
+  bookings: Booking[];
+  setBookings: React.Dispatch<React.SetStateAction<Booking[]>>;
+}
+
+export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const [search, setSearch] = useState('');
   const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [additionalPassengers, setAdditionalPassengers] = useState<Passenger[]>([]);
 
   // Estados de ubicación
   const [origin, setOrigin] = useState('');
@@ -40,6 +45,7 @@ export const Admin: React.FC = () => {
     setDestination('');
     setHasLayover(false);
     setLayovers(['']);
+    setAdditionalPassengers([]);
     setNewBooking({
       purchaseDate: new Date().toISOString().split('T')[0],
       passenger: '',
@@ -64,6 +70,10 @@ export const Admin: React.FC = () => {
     setDestination(routeParts[routeParts.length - 1] || '');
     setHasLayover(routeParts.length > 2);
     setLayovers(routeParts.length > 2 ? routeParts.slice(1, -1) : ['']);
+    const passengerList = booking.passengers?.length
+      ? booking.passengers
+      : [{ name: booking.passenger, cedula: booking.cedula }];
+    setAdditionalPassengers(passengerList.slice(1));
     setNewBooking({
       purchaseDate: booking.purchaseDate,
       passenger: booking.passenger,
@@ -100,7 +110,11 @@ export const Admin: React.FC = () => {
       const bookingData = {
         ...newBooking,
         totalValue,
-        paidAmount: newBooking.paymentStatus === 'PAGADO' ? totalValue : Math.min(Number(newBooking.paidAmount) || 0, totalValue)
+        paidAmount: newBooking.paymentStatus === 'PAGADO' ? totalValue : Math.min(Number(newBooking.paidAmount) || 0, totalValue),
+        passengers: [
+          { name: newBooking.passenger, cedula: newBooking.cedula },
+          ...additionalPassengers
+        ]
       };
 
     if (editingBookingId) {
@@ -191,7 +205,22 @@ export const Admin: React.FC = () => {
             {filteredBookings.map((b) => (
               <tr key={b.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.purchaseDate)}</td>
-                <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>{b.passenger}</td>
+                <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>
+                  {b.passenger}
+                  {b.passengers?.length > 1 && (
+                    <details style={{ marginTop: '6px', fontWeight: 'normal' }}>
+                      <summary style={{ color: '#2D60A8', cursor: 'pointer' }}>Ver {b.passengers.length} pasajeros</summary>
+                      <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                        {b.passengers.map((passenger, index) => (
+                          <div key={`${b.id}-${index}`} style={{ marginBottom: index < b.passengers.length - 1 ? '6px' : 0 }}>
+                            <strong>{passenger.name}</strong><br />
+                            <span style={{ fontWeight: 'normal' }}>Cédula: {passenger.cedula}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </td>
                 <td style={{ padding: '14px' }}>{b.phone}</td>
                 <td style={{ padding: '14px' }}>{b.route}</td>
                 <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
@@ -237,6 +266,16 @@ export const Admin: React.FC = () => {
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>👤 Perfil del Cliente</h3>
             <p style={{ marginTop: '15px' }}><strong>Nombre:</strong> {selectedPassenger.passenger}</p>
             <p><strong>Cédula:</strong> {selectedPassenger.cedula || 'No registrada'}</p>
+            {selectedPassenger.passengers?.length > 1 && (
+              <div style={{ margin: '15px 0', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+                <strong>Pasajeros del registro:</strong>
+                {selectedPassenger.passengers.map((passenger, index) => (
+                  <p key={`${selectedPassenger.id}-profile-${index}`} style={{ margin: '8px 0 0' }}>
+                    {passenger.name} - Cédula: {passenger.cedula}
+                  </p>
+                ))}
+              </div>
+            )}
             <p><strong>Celular / WhatsApp:</strong> {selectedPassenger.phone}</p>
             <p><strong>Ruta:</strong> {selectedPassenger.route}</p>
             <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
@@ -277,6 +316,35 @@ export const Admin: React.FC = () => {
                   <input required type="text" value={newBooking.phone} onChange={e => setNewBooking({...newBooking, phone: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
               </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad de pasajeros:</label>
+                <select
+                  value={additionalPassengers.length + 1}
+                  onChange={e => {
+                    const count = Number(e.target.value);
+                    setAdditionalPassengers(currentPassengers => Array.from(
+                      { length: count - 1 },
+                      (_, index) => currentPassengers[index] ?? { name: '', cedula: '' }
+                    ));
+                  }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                >
+                  {Array.from({ length: 10 }, (_, index) => index + 1).map(count => (
+                    <option key={count} value={count}>{count}</option>
+                  ))}
+                </select>
+              </div>
+
+              {additionalPassengers.map((passenger, index) => (
+                <div key={index} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <strong style={{ display: 'block', marginBottom: '8px' }}>Pasajero {index + 2}</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <input required type="text" placeholder="Nombre completo" value={passenger.name} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <input required type="text" placeholder="Cédula" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  </div>
+                </div>
+              ))}
 
               {/* Origen */}
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>

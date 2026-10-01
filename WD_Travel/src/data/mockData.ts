@@ -1,3 +1,8 @@
+export interface Passenger {
+  name: string;
+  cedula: string;
+}
+
 export interface Booking {
   id: string;
   purchaseDate: string;
@@ -15,6 +20,7 @@ export interface Booking {
   totalValue: number;
   paymentStatus: string;
   paidAmount: number;
+  passengers: Passenger[];
 }
 
 export const MOCK_BOOKINGS: Booking[] = [
@@ -34,7 +40,8 @@ export const MOCK_BOOKINGS: Booking[] = [
     paymentMethod: "TRANSFERENCIA",
     totalValue: 0,
     paymentStatus: "PENDIENTE",
-    paidAmount: 0
+    paidAmount: 0,
+    passengers: [{ name: "NELLY AMAYA VIVEROS", cedula: "1098765432" }]
   },
   {
     id: "2",
@@ -52,6 +59,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     paymentMethod: "EFECTIVO",
     totalValue: 0,
     paymentStatus: "PENDIENTE",
-    paidAmount: 0
+    paidAmount: 0,
+    passengers: [{ name: "JOSE RUY RAMOS PAZ", cedula: "1112223334" }]
   }
 ];

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
+import type { Booking } from '../data/mockData';
 
 interface Traveler {
   firstName: string;
@@ -7,12 +8,19 @@ interface Traveler {
   cedula: string;
 }
 
-export const Home: React.FC = () => {
+interface HomeProps {
+  onBookingSubmit: (booking: Booking) => void;
+}
+
+export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [phone, setPhone] = useState('');
+  const [travelDate, setTravelDate] = useState('');
+  const [returnDate, setReturnDate] = useState('');
   const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<Traveler[]>([
     { firstName: '', lastName: '', cedula: '' }
@@ -39,6 +47,30 @@ export const Home: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const passengerList = travelers.map(traveler => ({
+      name: `${traveler.firstName} ${traveler.lastName}`.trim(),
+      cedula: traveler.cedula
+    }));
+
+    onBookingSubmit({
+      id: Date.now().toString(),
+      purchaseDate: new Date().toISOString().split('T')[0],
+      passenger: passengerList[0].name,
+      phone,
+      cedula: passengerList[0].cedula,
+      route: `${origin} ➔ ${destination}`,
+      bookingCode: 'PENDIENTE',
+      travelDate,
+      returnDate,
+      isTicket: true,
+      isPackage: false,
+      airline: 'Por definir',
+      paymentMethod: 'PENDIENTE',
+      totalValue: 0,
+      paymentStatus: 'PENDIENTE',
+      paidAmount: 0,
+      passengers: passengerList
+    });
     setSubmitted(true);
   };
 
@@ -135,7 +167,7 @@ export const Home: React.FC = () => {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Número de Teléfono (WhatsApp):</label>
-                <input required type="tel" placeholder="Ej: 3134902197" style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                <input required type="tel" placeholder="Ej: 3134902197" value={phone} onChange={e => setPhone(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
               </div>
 
               {/* Selector de Origen */}
@@ -151,11 +183,11 @@ export const Home: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Ida:</label>
-                  <input required type="date" style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  <input required type="date" value={travelDate} onChange={e => setTravelDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Regreso:</label>
-                  <input required type="date" style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  <input required type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
               </div>
 
