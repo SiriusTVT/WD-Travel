@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MOCK_BOOKINGS, type Booking } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
+import { formatDisplayDate } from '../formatDate';
 
 export const Admin: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
@@ -184,13 +185,13 @@ export const Admin: React.FC = () => {
           <tbody>
             {filteredBookings.map((b) => (
               <tr key={b.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '14px' }}>{b.purchaseDate}</td>
+                <td style={{ padding: '14px' }}>{formatDisplayDate(b.purchaseDate)}</td>
                 <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>{b.passenger}</td>
                 <td style={{ padding: '14px' }}>{b.phone}</td>
                 <td style={{ padding: '14px' }}>{b.route}</td>
                 <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
-                <td style={{ padding: '14px' }}>{b.travelDate}</td>
-                <td style={{ padding: '14px' }}>{b.returnDate}</td>
+                <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
+                <td style={{ padding: '14px' }}>{formatDisplayDate(b.returnDate)}</td>
                 <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
                 <td style={{ padding: '14px' }}>{b.airline}</td>
                 <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
