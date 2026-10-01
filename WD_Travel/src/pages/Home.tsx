@@ -1,12 +1,37 @@
 import React, { useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
 
+interface Traveler {
+  firstName: string;
+  lastName: string;
+  cedula: string;
+}
+
 export const Home: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [travelerCount, setTravelerCount] = useState(1);
+  const [travelers, setTravelers] = useState<Traveler[]>([
+    { firstName: '', lastName: '', cedula: '' }
+  ]);
+
+  const handleTravelerCountChange = (value: number) => {
+    const count = Math.min(20, Math.max(1, value));
+    setTravelerCount(count);
+    setTravelers(currentTravelers => Array.from(
+      { length: count },
+      (_, index) => currentTravelers[index] ?? { firstName: '', lastName: '', cedula: '' }
+    ));
+  };
+
+  const updateTraveler = (index: number, field: keyof Traveler, value: string) => {
+    setTravelers(currentTravelers => currentTravelers.map((traveler, travelerIndex) =>
+      travelerIndex === index ? { ...traveler, [field]: value } : traveler
+    ));
+  };
 
   const scrollToForm = () => {
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,15 +110,27 @@ export const Home: React.FC = () => {
           ) : (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Nombre Completo:</label>
-                  <input required type="text" placeholder="Ej: Nelly Amaya" style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Cédula / Documento:</label>
-                  <input required type="text" placeholder="Ej: 1098765432" style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
-                </div>
+              <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#2D60A8', fontSize: '1.1rem' }}>Datos de los viajeros</h3>
+                {travelers.map((traveler, index) => (
+                  <div key={index} style={{ marginBottom: index < travelers.length - 1 ? '15px' : 0, padding: '12px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                    <strong style={{ display: 'block', marginBottom: '10px', color: '#374151' }}>Viajero {index + 1}</strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Nombre:</label>
+                        <input required type="text" placeholder="Ej: Nelly" value={traveler.firstName} onChange={e => updateTraveler(index, 'firstName', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Apellido:</label>
+                        <input required type="text" placeholder="Ej: Amaya" value={traveler.lastName} onChange={e => updateTraveler(index, 'lastName', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Cédula:</label>
+                        <input required type="text" placeholder="Ej: 1098765432" value={traveler.cedula} onChange={e => updateTraveler(index, 'cedula', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div>
@@ -124,7 +161,7 @@ export const Home: React.FC = () => {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>¿Cuántas personas van a viajar?:</label>
-                <input required type="number" min="1" defaultValue="1" style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                <input required type="number" min="1" max="20" value={travelerCount} onChange={e => handleTravelerCountChange(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
               </div>
 
               <button
