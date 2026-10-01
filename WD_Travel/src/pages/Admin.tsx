@@ -346,6 +346,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
               ))}
 
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de servicio:</label>
+                <select
+                  required
+                  value={newBooking.isPackage ? 'PAQUETE' : 'TIQUETE'}
+                  onChange={e => setNewBooking({ ...newBooking, isPackage: e.target.value === 'PAQUETE', isTicket: e.target.value === 'TIQUETE' })}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                >
+                  <option value="TIQUETE">TIQUETE</option>
+                  <option value="PAQUETE">PAQUETE</option>
+                </select>
+              </div>
+
               {/* Origen */}
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />

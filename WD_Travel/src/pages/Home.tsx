@@ -8,6 +8,8 @@ interface Traveler {
   cedula: string;
 }
 
+type BookingType = 'TIQUETE' | 'PAQUETE';
+
 interface HomeProps {
   onBookingSubmit: (booking: Booking) => void;
 }
@@ -21,6 +23,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [phone, setPhone] = useState('');
   const [travelDate, setTravelDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
+  const [bookingType, setBookingType] = useState<BookingType>('TIQUETE');
   const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<Traveler[]>([
     { firstName: '', lastName: '', cedula: '' }
@@ -62,8 +65,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       bookingCode: 'PENDIENTE',
       travelDate,
       returnDate,
-      isTicket: true,
-      isPackage: false,
+      isTicket: bookingType === 'TIQUETE',
+      isPackage: bookingType === 'PAQUETE',
       airline: 'Por definir',
       paymentMethod: 'PENDIENTE',
       totalValue: 0,
@@ -194,6 +197,14 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>¿Cuántas personas van a viajar?:</label>
                 <input required type="number" min="1" max="20" value={travelerCount} onChange={e => handleTravelerCountChange(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de servicio:</label>
+                <select required value={bookingType} onChange={e => setBookingType(e.target.value as BookingType)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                  <option value="TIQUETE">TIQUETE</option>
+                  <option value="PAQUETE">PAQUETE</option>
+                </select>
               </div>
 
               <button
