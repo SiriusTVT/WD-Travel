@@ -11,6 +11,45 @@ interface Traveler {
 
 type BookingType = 'TIQUETE' | 'PAQUETE';
 
+const travelPackages = [
+  {
+    destination: 'Madrid, España',
+    badge: 'Más solicitado',
+    title: 'Plan migratorio a Madrid',
+    price: '$3.500.000',
+    previousPrice: '$4.500.000',
+    details: '10 días en Madrid · Salida 8 de mayo',
+    description: 'Te asesoramos antes y durante tu viaje con acompañamiento personalizado 24/7.',
+    includes: ['Tiquete aéreo', 'Voucher de alojamiento', 'Asistencia médica', 'Formularios migratorios'],
+    formDestination: 'España - Madrid (MAD)',
+    image: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=900&q=85'
+  },
+  {
+    destination: 'Polonia',
+    badge: 'Oportunidad laboral',
+    title: 'Plan migratorio a Polonia',
+    price: '$8.000.000',
+    previousPrice: '$10.000.000',
+    details: 'Viaje legal con orientación para trabajar',
+    description: 'Te ayudamos con documentos, oportunidades laborales y el proceso de viaje.',
+    includes: ['Orientación migratoria', 'Tiquete aéreo', 'Gestión documental', 'Acompañamiento personalizado'],
+    formDestination: 'Polonia - Varsovia (WAW)',
+    image: 'https://images.unsplash.com/photo-1519197924294-4ba991a11128?auto=format&fit=crop&w=900&q=85'
+  },
+  {
+    destination: 'España',
+    badge: 'Asesoría 24/7',
+    title: 'Plan migratorio España',
+    price: '$3.500.000',
+    previousPrice: '$4.500.000',
+    details: 'Planes para estudiar, trabajar o vacacionar',
+    description: 'Viaja seguro con lo necesario para ingresar a Europa sin preocupaciones.',
+    includes: ['Tiquete aéreo', 'Alojamiento', 'Asistencia médica', 'Soporte antes y durante el viaje'],
+    formDestination: 'España - Madrid (MAD)',
+    image: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=900&q=85'
+  }
+];
+
 interface HomeProps {
   onBookingSubmit: (booking: Booking) => void;
 }
@@ -83,6 +122,12 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const selectPackage = (destination: string) => {
+    setBookingType('PAQUETE');
+    setDestination(destination);
+    scrollToForm();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const passengerList = travelers.map(traveler => ({
@@ -152,6 +197,42 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           >
             Realiza tu solicitud de cotización
           </button>
+        </div>
+      </section>
+
+      <section className="packages-section" aria-labelledby="packages-title">
+        <div className="packages-heading">
+          <span className="section-eyebrow">Ofertas WD Travel</span>
+          <h2 id="packages-title">Paquetes para hacer realidad tu próximo viaje</h2>
+          <p>Elige una opción y recibe asesoría personalizada para reservarla.</p>
+        </div>
+        <div className="packages-grid">
+          {travelPackages.map(travelPackage => (
+            <article className="package-card" key={travelPackage.title}>
+              <div
+                className="package-image"
+                style={{ backgroundImage: `linear-gradient(180deg, rgba(13, 42, 82, 0.08), rgba(13, 42, 82, 0.85)), url('${travelPackage.image}')` }}
+              >
+                <span className="package-badge">{travelPackage.badge}</span>
+                <div className="package-destination">{travelPackage.destination}</div>
+              </div>
+              <div className="package-content">
+                <h3>{travelPackage.title}</h3>
+                <p className="package-details">{travelPackage.details}</p>
+                <div className="package-price">
+                  <strong>{travelPackage.price}</strong>
+                  <del>{travelPackage.previousPrice}</del>
+                </div>
+                <p className="package-description">{travelPackage.description}</p>
+                <ul className="package-includes">
+                  {travelPackage.includes.map(item => <li key={item}>{item}</li>)}
+                </ul>
+                <button type="button" className="package-button" onClick={() => selectPackage(travelPackage.formDestination)}>
+                  Quiero cotizar este paquete
+                </button>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 

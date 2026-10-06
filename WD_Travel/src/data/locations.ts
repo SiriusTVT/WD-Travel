@@ -30,6 +30,14 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
     ]
   },
   {
+    country: "Polonia",
+    cities: [
+      "Varsovia (WAW)",
+      "Cracovia (KRK)",
+      "Gdansk (GDN)"
+    ]
+  },
+  {
     country: "Estados Unidos",
     cities: [
       "Miami (MIA)",
