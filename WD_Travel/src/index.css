@@ -14,6 +14,11 @@ body {
   overflow-x: hidden;
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
 input, select, button, textarea {
   font-family: inherit;
   font-size: 0.95rem;
@@ -40,11 +45,13 @@ h3 {
   isolation: isolate;
   overflow: hidden;
   display: grid;
+  width: 100%;
   min-height: calc(100svh - 80px);
   place-items: center;
   background:
     linear-gradient(105deg, rgba(23, 57, 100, 0.86), rgba(23, 57, 100, 0.43)),
-    url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2200&q=85') center / cover no-repeat;
+    url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2200&q=85') center center / cover no-repeat;
+  background-attachment: scroll;
   background-color: #173964;
 }
 
