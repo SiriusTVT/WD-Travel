@@ -89,7 +89,10 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [submitted, setSubmitted] = useState(false);
+  const [isHeroVideoFading, setIsHeroVideoFading] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  const heroVideoFadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -175,6 +178,22 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     document.body.appendChild(script);
   }, []);
 
+  useEffect(() => () => {
+    if (heroVideoFadeTimeoutRef.current) clearTimeout(heroVideoFadeTimeoutRef.current);
+  }, []);
+
+  const handleHeroVideoEnd = () => {
+    setIsHeroVideoFading(true);
+    heroVideoFadeTimeoutRef.current = setTimeout(() => {
+      const video = heroVideoRef.current;
+      if (video) {
+        video.currentTime = 0;
+        void video.play();
+      }
+      setIsHeroVideoFading(false);
+    }, 500);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const passengerList = travelers.map(traveler => ({
@@ -219,7 +238,15 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         textAlign: 'center',
         boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
       }}>
-        <video className="hero-video" autoPlay muted loop playsInline aria-hidden="true">
+        <video
+          ref={heroVideoRef}
+          className={`hero-video${isHeroVideoFading ? ' hero-video-fading' : ''}`}
+          autoPlay
+          muted
+          playsInline
+          onEnded={handleHeroVideoEnd}
+          aria-hidden="true"
+        >
           <source src="/wd-travel-hero.mp4" type="video/mp4" />
         </video>
         <div className="hero-content" style={{ maxWidth: '900px', margin: '0 auto' }}>
