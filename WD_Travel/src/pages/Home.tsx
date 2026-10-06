@@ -1,6 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
 import type { Booking } from '../data/mockData';
+
+declare global {
+  interface Window {
+    instgrm?: {
+      Embeds?: {
+        process: () => void;
+      };
+    };
+  }
+}
 
 interface Traveler {
   firstName: string;
@@ -151,6 +161,20 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     scrollToForm();
   };
 
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src="https://www.instagram.com/embed.js"]');
+    if (existingScript) {
+      window.instgrm?.Embeds?.process();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://www.instagram.com/embed.js';
+    script.onload = () => window.instgrm?.Embeds?.process();
+    document.body.appendChild(script);
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const passengerList = travelers.map(traveler => ({
@@ -189,7 +213,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
   return (
     <div style={{ backgroundColor: '#f4f7fe', minHeight: '100vh' }}>
-
       <section className="hero-section" style={{
         color: '#ffffff',
         padding: '80px 20px',
@@ -242,6 +265,36 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <span>Asesoría personalizada antes, durante y después de tu viaje.</span>
           <strong>Planes claros y a tu medida</strong>
           <span>Opciones pensadas para tus objetivos, presupuesto y estilo de vida.</span>
+        </div>
+      </section>
+
+      <section className="presentation-section" aria-labelledby="presentation-title">
+        <div className="presentation-copy">
+          <span className="section-eyebrow">Conoce nuestra comunidad</span>
+          <h2 id="presentation-title">Viaja con W.D Travel</h2>
+          <p>
+            Descubre nuestra presentación y conoce las experiencias, servicios y oportunidades que tenemos para acompañarte en tu próximo destino.
+          </p>
+          <a
+            className="presentation-link"
+            href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Ver en Instagram
+          </a>
+        </div>
+        <div className="presentation-video">
+          <blockquote
+            className="instagram-media"
+            data-instgrm-captioned
+            data-instgrm-permalink="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
+            data-instgrm-version="14"
+          >
+            <a href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading" target="_blank" rel="noreferrer">
+              Ver esta publicación en Instagram
+            </a>
+          </blockquote>
         </div>
       </section>
 
