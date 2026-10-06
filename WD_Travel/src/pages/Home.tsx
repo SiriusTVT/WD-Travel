@@ -277,6 +277,14 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             Explorar paquetes y servicios
           </button>
         </div>
+        <button
+          type="button"
+          className="scroll-cue"
+          aria-label="Desplazarse para descubrir más"
+          onClick={() => document.querySelector('.about-section')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          <span className="scroll-arrow" aria-hidden="true">↓</span>
+        </button>
       </section>
 
       <section className="about-section" aria-labelledby="about-title">

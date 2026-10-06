@@ -147,6 +147,54 @@ h3 {
   z-index: 2;
 }
 
+.scroll-cue {
+  position: absolute;
+  z-index: 2;
+  bottom: 22px;
+  left: 50%;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  appearance: none;
+  transform: translateX(-50%);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.scroll-arrow {
+  display: block;
+  color: var(--wd-gold, #f4bd24);
+  font-size: 2.2rem;
+  line-height: 1;
+  animation: scroll-bounce 1.4s ease-in-out infinite;
+}
+
+.scroll-cue:hover {
+  background: transparent;
+}
+
+.scroll-cue:focus-visible {
+  outline: 2px solid var(--wd-gold, #f4bd24);
+  outline-offset: 4px;
+}
+
+@keyframes scroll-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(6px);
+  }
+}
+
 .hero-title {
   letter-spacing: -0.045em;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
@@ -578,6 +626,11 @@ input {
 .presentation-link {
   background: linear-gradient(135deg, var(--wd-blue), var(--wd-navy)) !important;
   box-shadow: 0 8px 18px rgba(16, 47, 89, 0.2);
+}
+
+.hero-section button.scroll-cue {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .hero-section button:not(.hero-secondary-button) {
