@@ -50,6 +50,29 @@ const travelPackages = [
   }
 ];
 
+const travelServices = [
+  {
+    icon: '✈️',
+    title: 'Paquetes vacacionales a medida',
+    description: 'Diseñamos escapadas nacionales e internacionales con vuelos, hospedajes verificados y actividades exclusivas organizadas para que solo te preocupes por disfrutar.'
+  },
+  {
+    icon: '🛡️',
+    title: 'Asistencia al viajero y seguros globales',
+    description: 'Cobertura médica internacional, protección de equipaje y soporte ante imprevistos para garantizar tu bienestar y el de tu familia en cualquier rincón del mundo.'
+  },
+  {
+    icon: '🗂️',
+    title: 'Asesoría en visados y trámites migratorios',
+    description: 'Acompañamiento paso a paso en requisitos de entrada, documentación y gestión consular para que tus planes de viaje o reubicación avancen sin contratiempos.'
+  },
+  {
+    icon: '🚐',
+    title: 'Logística y traslados personalizados',
+    description: 'Conexiones aéreas estratégicas, traslados privados y reservas coordinadas al milímetro para que tu itinerario fluya sin esperas innecesarias.'
+  }
+];
+
 interface HomeProps {
   onBookingSubmit: (booking: Booking) => void;
 }
@@ -195,8 +218,30 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               boxShadow: '0 6px 20px rgba(227,179,29,0.4)'
             }}
           >
-            Realiza tu solicitud de cotización
+            Cotizar mi viaje ahora
           </button>
+          <button type="button" className="hero-secondary-button" onClick={() => document.querySelector('.packages-section')?.scrollIntoView({ behavior: 'smooth' })}>
+            Explorar paquetes y servicios
+          </button>
+        </div>
+      </section>
+
+      <section className="about-section" aria-labelledby="about-title">
+        <div className="about-content">
+          <span className="section-eyebrow">Nuestra esencia</span>
+          <h2 id="about-title">Más que una agencia: tu aliado en cada paso del viaje</h2>
+          <p>
+            En <strong>W.D Travel</strong> somos más que una agencia de viajes digital: somos tu aliado estratégico en cada paso del camino. Nacimos para eliminar la incertidumbre y las horas perdidas al planificar un itinerario, transformando el proceso de viaje en una experiencia fluida, transparente y adaptada al presupuesto y estilo de vida de cada viajero.
+          </p>
+          <p>
+            Nuestra misión es conectar a personas y familias con sus destinos ideales brindando respaldo real de principio a fin. Ya sea que busques una escapada vacacional, apoyo en reubicación internacional o la tranquilidad de contar con asistencia integral ante cualquier imprevisto, en <strong>W.D Travel</strong> viajas con la certeza de tener un equipo experto cuidando cada detalle.
+          </p>
+        </div>
+        <div className="about-highlights">
+          <strong>Viaja con respaldo real</strong>
+          <span>Asesoría personalizada antes, durante y después de tu viaje.</span>
+          <strong>Planes claros y a tu medida</strong>
+          <span>Opciones pensadas para tus objetivos, presupuesto y estilo de vida.</span>
         </div>
       </section>
 
@@ -231,6 +276,23 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   Quiero cotizar este paquete
                 </button>
               </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="services-section" aria-labelledby="services-title">
+        <div className="packages-heading">
+          <span className="section-eyebrow">Viaja con tranquilidad</span>
+          <h2 id="services-title">Todo lo que necesitas para disfrutar el camino</h2>
+          <p>Coordinamos cada detalle para que tengas una experiencia segura y sin complicaciones.</p>
+        </div>
+        <div className="services-grid">
+          {travelServices.map(service => (
+            <article className="service-card" key={service.title}>
+              <span className="service-icon" aria-hidden="true">{service.icon}</span>
+              <h3>{service.title}</h3>
+              <p>{service.description}</p>
             </article>
           ))}
         </div>
@@ -373,6 +435,22 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           )}
         </div>
       </div>
+
+      <section className="closing-cta" aria-labelledby="closing-cta-title">
+        <div>
+          <span className="section-eyebrow">Estamos para ayudarte</span>
+          <h2 id="closing-cta-title">El viaje de tus sueños comienza con una conversación.</h2>
+          <p>Cuéntanos a dónde quieres ir y nosotros nos encargamos del resto. Recibe una cotización personalizada en minutos o síguenos para inspirarte con nuestras ofertas y recomendaciones.</p>
+        </div>
+        <div className="closing-actions">
+          <a className="whatsapp-button" href="https://wa.me/573332688678" target="_blank" rel="noreferrer">
+            Hablar con un asesor por WhatsApp
+          </a>
+          <a className="instagram-button" href="https://www.instagram.com/w.d.travel3/" target="_blank" rel="noreferrer">
+            Síguenos en Instagram @w.d.travel3
+          </a>
+        </div>
+      </section>
     </div>
   );
 };

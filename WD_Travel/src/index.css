@@ -60,6 +60,66 @@ h3 {
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
 }
 
+.hero-secondary-button {
+  display: block;
+  margin: 18px auto 0;
+  padding: 8px 18px;
+  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.hero-secondary-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.about-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(250px, 0.8fr);
+  gap: 45px;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 72px 20px 40px;
+}
+
+.about-content h2,
+.closing-cta h2 {
+  margin-bottom: 18px;
+  color: #173964;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+}
+
+.about-content p {
+  margin-top: 14px;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.about-highlights {
+  display: grid;
+  gap: 8px;
+  padding: 28px;
+  color: #fff;
+  background: linear-gradient(145deg, #173964, #2d60a8);
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(23, 57, 100, 0.18);
+}
+
+.about-highlights strong {
+  margin-top: 8px;
+  color: #f6c529;
+  font-size: 1.1rem;
+}
+
+.about-highlights span {
+  line-height: 1.5;
+}
+
 .packages-section {
   padding: 64px 20px 24px;
   background: #f4f7fe;
@@ -218,8 +278,90 @@ h3 {
   background: #214d8c;
 }
 
+.services-section {
+  padding: 68px 20px 28px;
+  background: #fff;
+}
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.service-card {
+  padding: 24px 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.service-icon {
+  display: block;
+  margin-bottom: 15px;
+  font-size: 2rem;
+}
+
+.service-card h3 {
+  min-height: 48px;
+  margin-bottom: 12px;
+  color: #173964;
+  font-size: 1.05rem;
+}
+
+.service-card p {
+  color: #64748b;
+  line-height: 1.55;
+}
+
 .quote-card {
   padding: 35px;
+}
+
+.closing-cta {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 35px;
+  align-items: center;
+  padding: 65px max(20px, calc((100% - 1100px) / 2));
+  color: #fff;
+  background: #173964;
+}
+
+.closing-cta h2 {
+  color: #fff;
+}
+
+.closing-cta p {
+  max-width: 720px;
+  color: #dbeafe;
+  line-height: 1.6;
+}
+
+.closing-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.closing-actions a {
+  display: block;
+  padding: 14px 18px;
+  border-radius: 9px;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.whatsapp-button {
+  color: #12351f;
+  background: #35d06f;
+}
+
+.instagram-button {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
 .traveler-fields-grid {
@@ -258,8 +400,28 @@ h3 {
     padding: 44px 16px 12px;
   }
 
+  .about-section,
+  .closing-cta {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
   .packages-grid {
     grid-template-columns: 1fr;
+  }
+
+  .services-section {
+    padding: 44px 16px 18px;
+  }
+
+  .services-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-card h3 {
+    min-height: auto;
   }
 
   .package-image {
