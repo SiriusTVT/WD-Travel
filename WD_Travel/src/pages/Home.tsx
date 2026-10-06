@@ -219,7 +219,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         textAlign: 'center',
         boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
       }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <video className="hero-video" autoPlay muted loop playsInline aria-hidden="true">
+          <source src="/wd-travel-hero.mp4" type="video/mp4" />
+        </video>
+        <div className="hero-content" style={{ maxWidth: '900px', margin: '0 auto' }}>
           <h1 className="hero-title" style={{ fontSize: '3rem', fontWeight: '800', margin: '0 0 15px 0' }}>
             ¡Bienvenido a WD Travel!
           </h1>
