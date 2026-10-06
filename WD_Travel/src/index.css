@@ -7,10 +7,10 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Trebuchet MS', Arial, sans-serif;
   background-color: #f4f7fe;
   color: #2b2d42;
-  width: 100vw;
+  width: 100%;
   overflow-x: hidden;
 }
 
@@ -27,4 +27,71 @@ input {
 
 input::placeholder {
   color: #9ca3af;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Arial Black', 'Trebuchet MS', Arial, sans-serif;
+}
+
+.hero-section {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  min-height: calc(100svh - 80px);
+  place-items: center;
+  background:
+    linear-gradient(105deg, rgba(23, 57, 100, 0.86), rgba(23, 57, 100, 0.43)),
+    url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2200&q=85') center / contain no-repeat;
+  background-color: #173964;
+}
+
+.hero-title {
+  letter-spacing: -0.045em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+}
+
+.quote-card {
+  padding: 35px;
+}
+
+.traveler-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.45fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.travel-count-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .hero-section {
+    padding: 64px 20px !important;
+    min-height: calc(100svh - 70px);
+  }
+
+  .hero-title {
+    font-size: 2.25rem !important;
+  }
+
+  .quote-card {
+    padding: 24px 18px !important;
+  }
+
+  .traveler-fields-grid,
+  .contact-grid,
+  .travel-count-grid {
+    grid-template-columns: 1fr;
+  }
 }

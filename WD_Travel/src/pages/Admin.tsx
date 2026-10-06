@@ -3,6 +3,14 @@ import { type Booking, type Passenger } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { formatDisplayDate } from '../formatDate';
 
+const getNameParts = (firstName = '', lastName = '', fullName = '') => {
+  if (firstName || lastName) return { firstName, lastName };
+  const [legacyFirstName = '', ...legacyLastName] = fullName.trim().split(/\s+/);
+  return { firstName: legacyFirstName, lastName: legacyLastName.join(' ') };
+};
+
+const joinName = (firstName: string, lastName: string) => `${firstName.trim()} ${lastName.trim()}`.trim();
+
 interface AdminProps {
   bookings: Booking[];
   setBookings: React.Dispatch<React.SetStateAction<Booking[]>>;
@@ -25,7 +33,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
 
   const [newBooking, setNewBooking] = useState({
     purchaseDate: new Date().toISOString().split('T')[0],
-    passenger: '',
+    firstName: '',
+    lastName: '',
     phone: '',
     cedula: '',
     bookingCode: '',
@@ -48,7 +57,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setAdditionalPassengers([]);
     setNewBooking({
       purchaseDate: new Date().toISOString().split('T')[0],
-      passenger: '',
+      firstName: '',
+      lastName: '',
       phone: '',
       cedula: '',
       bookingCode: '',
@@ -73,10 +83,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     const passengerList = booking.passengers?.length
       ? booking.passengers
       : [{ name: booking.passenger, cedula: booking.cedula }];
-    setAdditionalPassengers(passengerList.slice(1));
+    const primaryName = getNameParts(booking.firstName, booking.lastName, booking.passenger);
+    setAdditionalPassengers(passengerList.slice(1).map(passenger => ({
+      ...passenger,
+      ...getNameParts(passenger.firstName, passenger.lastName, passenger.name)
+    })));
     setNewBooking({
       purchaseDate: booking.purchaseDate,
-      passenger: booking.passenger,
+      ...primaryName,
       phone: booking.phone,
       cedula: booking.cedula,
       bookingCode: booking.bookingCode,
@@ -107,14 +121,30 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
 
     const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
     const totalValue = Number(newBooking.totalValue);
+    const firstName = newBooking.firstName.trim();
+    const lastName = newBooking.lastName.trim();
+    const passengerName = joinName(firstName, lastName);
+    const passengers = [
+      { firstName, lastName, name: passengerName, cedula: newBooking.cedula },
+      ...additionalPassengers.map(passenger => {
+        const passengerFirstName = passenger.firstName?.trim() ?? '';
+        const passengerLastName = passenger.lastName?.trim() ?? '';
+        return {
+          ...passenger,
+          firstName: passengerFirstName,
+          lastName: passengerLastName,
+          name: joinName(passengerFirstName, passengerLastName)
+        };
+      })
+    ];
       const bookingData = {
         ...newBooking,
+        firstName,
+        lastName,
+        passenger: passengerName,
         totalValue,
         paidAmount: newBooking.paymentStatus === 'PAGADO' ? totalValue : Math.min(Number(newBooking.paidAmount) || 0, totalValue),
-        passengers: [
-          { name: newBooking.passenger, cedula: newBooking.cedula },
-          ...additionalPassengers
-        ]
+        passengers
       };
 
     if (editingBookingId) {
@@ -214,7 +244,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                         {b.passengers.map((passenger, index) => (
                           <div key={`${b.id}-${index}`} style={{ marginBottom: index < b.passengers.length - 1 ? '6px' : 0 }}>
                             <strong>{passenger.name}</strong><br />
-                            <span style={{ fontWeight: 'normal' }}>Cédula: {passenger.cedula}</span>
+                            <span style={{ fontWeight: 'normal' }}>{passenger.documentType || 'Número de identidad'}: {passenger.cedula}</span>
                           </div>
                         ))}
                       </div>
@@ -265,13 +295,13 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '500px', width: '90%' }}>
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>👤 Perfil del Cliente</h3>
             <p style={{ marginTop: '15px' }}><strong>Nombre:</strong> {selectedPassenger.passenger}</p>
-            <p><strong>Cédula:</strong> {selectedPassenger.cedula || 'No registrada'}</p>
+            <p><strong>{selectedPassenger.documentType || 'Número de identidad'}:</strong> {selectedPassenger.cedula || 'No registrado'}</p>
             {selectedPassenger.passengers?.length > 1 && (
               <div style={{ margin: '15px 0', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <strong>Pasajeros del registro:</strong>
                 {selectedPassenger.passengers.map((passenger, index) => (
                   <p key={`${selectedPassenger.id}-profile-${index}`} style={{ margin: '8px 0 0' }}>
-                    {passenger.name} - Cédula: {passenger.cedula}
+                    {passenger.name} - {passenger.documentType || 'Número de identidad'}: {passenger.cedula}
                   </p>
                 ))}
               </div>
@@ -302,10 +332,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>{editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}</h3>
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombre Pasajero:</label>
-                  <input required type="text" value={newBooking.passenger} onChange={e => setNewBooking({...newBooking, passenger: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombres:</label>
+                  <input required type="text" placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Apellidos:</label>
+                  <input required type="text" placeholder="Ej: Pérez Gómez" value={newBooking.lastName} onChange={e => setNewBooking({...newBooking, lastName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cédula:</label>
@@ -325,7 +359,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     const count = Number(e.target.value);
                     setAdditionalPassengers(currentPassengers => Array.from(
                       { length: count - 1 },
-                      (_, index) => currentPassengers[index] ?? { name: '', cedula: '' }
+                      (_, index) => currentPassengers[index] ?? { firstName: '', lastName: '', name: '', cedula: '' }
                     ));
                   }}
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
@@ -340,7 +374,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 <div key={index} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <strong style={{ display: 'block', marginBottom: '8px' }}>Pasajero {index + 2}</strong>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <input required type="text" placeholder="Nombre completo" value={passenger.name} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <input required type="text" placeholder="Nombres" value={passenger.firstName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <input required type="text" placeholder="Apellidos" value={passenger.lastName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                     <input required type="text" placeholder="Cédula" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                   </div>
                 </div>

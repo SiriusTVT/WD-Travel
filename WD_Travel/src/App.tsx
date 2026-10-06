@@ -9,7 +9,7 @@ function App() {
   const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
 
   return (
-    <div style={{ backgroundColor: '#f5f7fa', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
       <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} />
       {currentTab === 'home' ? <Home onBookingSubmit={booking => setBookings(currentBookings => [booking, ...currentBookings])} /> : <Admin bookings={bookings} setBookings={setBookings} />}
     </div>
