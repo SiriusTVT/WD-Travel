@@ -357,14 +357,21 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 <td style={{ padding: '14px' }}>{formatDisplayDate(activeView === 'quotes' ? (b.quoteDate || b.purchaseDate) : b.purchaseDate)}</td>
                 <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>
                   {b.passenger}
+                  <div style={{ marginTop: '4px', fontWeight: 'normal', fontSize: '0.85rem', color: '#4b5563' }}>
+                    <div>Tipo de documento: {b.documentType || 'Cédula de ciudadanía'}</div>
+                    <div>Cédula: {b.cedula || 'No registrada'}</div>
+                  </div>
                   {b.passengers?.length > 1 && (
                     <details style={{ marginTop: '6px', fontWeight: 'normal' }}>
                       <summary style={{ color: '#2D60A8', cursor: 'pointer' }}>Ver {b.passengers.length} pasajeros</summary>
                       <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
                         {b.passengers.map((passenger, index) => (
                           <div key={`${b.id}-${index}`} style={{ marginBottom: index < b.passengers.length - 1 ? '6px' : 0 }}>
-                            <strong>{passenger.name}</strong><br />
-                            <span style={{ fontWeight: 'normal' }}>{passenger.documentType || 'Número de identidad'}: {passenger.cedula}</span>
+                            <strong>{passenger.name}</strong>
+                            <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
+                              <div>Tipo de documento: {passenger.documentType || 'Cédula de ciudadanía'}</div>
+                              <div>Cédula: {passenger.cedula || 'No registrada'}</div>
+                            </div>
                           </div>
                         ))}
                       </div>
