@@ -17,10 +17,12 @@ interface AdminProps {
 }
 
 export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
+  const [activeView, setActiveView] = useState<'quotes' | 'purchases'>('quotes');
   const [search, setSearch] = useState('');
   const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [completingQuote, setCompletingQuote] = useState(false);
   const [additionalPassengers, setAdditionalPassengers] = useState<Passenger[]>([]);
 
   // Estados de ubicación
@@ -32,7 +34,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const [layovers, setLayovers] = useState<string[]>(['']);
 
   const [newBooking, setNewBooking] = useState({
-    purchaseDate: new Date().toISOString().split('T')[0],
+    quoteDate: new Date().toISOString().split('T')[0],
+    purchaseDate: '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -56,7 +59,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setLayovers(['']);
     setAdditionalPassengers([]);
     setNewBooking({
-      purchaseDate: new Date().toISOString().split('T')[0],
+      quoteDate: new Date().toISOString().split('T')[0],
+      purchaseDate: '',
       firstName: '',
       lastName: '',
       phone: '',
@@ -89,6 +93,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       ...getNameParts(passenger.firstName, passenger.lastName, passenger.name)
     })));
     setNewBooking({
+      quoteDate: booking.quoteDate || booking.purchaseDate,
       purchaseDate: booking.purchaseDate,
       ...primaryName,
       phone: booking.phone,
@@ -116,16 +121,41 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setSelectedPassenger(currentPassenger => currentPassenger?.id === booking.id ? null : currentPassenger);
   };
 
+  const handleCompletePurchaseClick = (booking: Booking) => {
+    handleEditClick(booking);
+    setNewBooking(current => ({
+      ...current,
+      bookingCode: booking.bookingCode === 'PENDIENTE' ? '' : booking.bookingCode,
+      airline: booking.airline === 'Por definir' ? '' : booking.airline,
+      totalValue: booking.totalValue || '',
+      paidAmount: booking.totalValue || '',
+      paymentStatus: 'PAGADO'
+    }));
+    setCompletingQuote(true);
+  };
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (completingQuote && (!newBooking.bookingCode.trim() || !newBooking.airline.trim() || Number(newBooking.totalValue) <= 0)) {
+      window.alert('Completa el código de reserva, la aerolínea y un precio mayor que cero para registrar la compra.');
+      return;
+    }
 
     const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
     const totalValue = Number(newBooking.totalValue);
     const firstName = newBooking.firstName.trim();
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
+    const existingBooking = bookings.find(booking => booking.id === editingBookingId);
     const passengers = [
-      { firstName, lastName, name: passengerName, cedula: newBooking.cedula },
+      {
+        firstName,
+        lastName,
+        name: passengerName,
+        cedula: newBooking.cedula,
+        documentType: existingBooking?.documentType
+      },
       ...additionalPassengers.map(passenger => {
         const passengerFirstName = passenger.firstName?.trim() ?? '';
         const passengerLastName = passenger.lastName?.trim() ?? '';
@@ -137,8 +167,13 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         };
       })
     ];
+    const purchaseDate = newBooking.paymentStatus === 'PAGADO'
+      ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
+      : '';
       const bookingData = {
         ...newBooking,
+        purchaseDate,
+        documentType: existingBooking?.documentType,
         firstName,
         lastName,
         passenger: passengerName,
@@ -163,14 +198,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
 
     setShowAddModal(false);
     setEditingBookingId(null);
+    setCompletingQuote(false);
     resetForm();
+    setActiveView(newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes');
   };
 
-  const filteredBookings = bookings.filter(b =>
+  const searchedBookings = bookings.filter(b =>
     b.passenger.toLowerCase().includes(search.toLowerCase()) ||
     b.phone.includes(search) ||
     b.cedula.includes(search)
   );
+  const pendingQuotes = searchedBookings.filter(booking => booking.paymentStatus !== 'PAGADO');
+  const purchases = searchedBookings.filter(booking => booking.paymentStatus === 'PAGADO');
+  const filteredBookings = activeView === 'quotes' ? pendingQuotes : purchases;
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
   const formatAmountInput = (amount: number | '') => amount === '' ? '' : amount.toLocaleString('es-CO');
@@ -209,32 +249,63 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         />
       </div>
 
+      <div role="tablist" aria-label="Secciones de administración" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #d1d5db' }}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'quotes'}
+          onClick={() => setActiveView('quotes')}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'quotes' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'quotes' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Cotizaciones pendientes ({pendingQuotes.length})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'purchases'}
+          onClick={() => setActiveView('purchases')}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'purchases' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'purchases' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Compras registradas ({purchases.length})
+        </button>
+      </div>
+
       {/* Tabla estilo Excel */}
       <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
           <thead>
             <tr style={{ backgroundColor: '#2D60A8', color: '#fff' }}>
-              <th style={{ padding: '14px' }}>FECHA COMPRA</th>
+              <th style={{ padding: '14px' }}>{activeView === 'quotes' ? 'FECHA DE COTIZACIÓN' : 'FECHA DE COMPRA'}</th>
               <th style={{ padding: '14px' }}>PASAJERO</th>
               <th style={{ padding: '14px' }}>CELULAR</th>
               <th style={{ padding: '14px' }}>RUTA</th>
-              <th style={{ padding: '14px' }}>COD RESERVA</th>
               <th style={{ padding: '14px' }}>FECHA VIAJE</th>
               <th style={{ padding: '14px' }}>FECHA REGRESO</th>
               <th style={{ padding: '14px' }}>TIPO</th>
-              <th style={{ padding: '14px' }}>AEROLÍNEA</th>
-              <th style={{ padding: '14px' }}>PAGO</th>
-              <th style={{ padding: '14px' }}>VALOR TOTAL</th>
-              <th style={{ padding: '14px' }}>ABONADO</th>
-              <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
-              <th style={{ padding: '14px' }}>ESTADO DEL PAGO</th>
+              {activeView === 'purchases' && (
+                <>
+                  <th style={{ padding: '14px' }}>COD RESERVA</th>
+                  <th style={{ padding: '14px' }}>AEROLÍNEA</th>
+                  <th style={{ padding: '14px' }}>PAGO</th>
+                  <th style={{ padding: '14px' }}>VALOR TOTAL</th>
+                  <th style={{ padding: '14px' }}>ABONADO</th>
+                  <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
+                  <th style={{ padding: '14px' }}>ESTADO DEL PAGO</th>
+                </>
+              )}
               <th style={{ padding: '14px' }}>ACCIONES</th>
             </tr>
           </thead>
           <tbody>
-            {filteredBookings.map((b) => (
+            {filteredBookings.length === 0 ? (
+              <tr>
+                <td colSpan={activeView === 'quotes' ? 8 : 15} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
+                  {activeView === 'quotes' ? 'No hay cotizaciones pendientes.' : 'Todavía no hay compras registradas.'}
+                </td>
+              </tr>
+            ) : filteredBookings.map((b) => (
               <tr key={b.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '14px' }}>{formatDisplayDate(b.purchaseDate)}</td>
+                <td style={{ padding: '14px' }}>{formatDisplayDate(activeView === 'quotes' ? (b.quoteDate || b.purchaseDate) : b.purchaseDate)}</td>
                 <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>
                   {b.passenger}
                   {b.passengers?.length > 1 && (
@@ -253,23 +324,37 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </td>
                 <td style={{ padding: '14px' }}>{b.phone}</td>
                 <td style={{ padding: '14px' }}>{b.route}</td>
-                <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.returnDate)}</td>
                 <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
-                <td style={{ padding: '14px' }}>{b.airline}</td>
-                <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
-                <td style={{ padding: '14px' }}>{formatCurrency(b.totalValue)}</td>
-                <td style={{ padding: '14px' }}>{formatCurrency(b.paidAmount)}</td>
-                <td style={{ padding: '14px', color: b.totalValue - b.paidAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{formatCurrency(Math.max(0, b.totalValue - b.paidAmount))}</td>
-                <td style={{ padding: '14px', color: b.paymentStatus === 'PAGADO' ? '#16a34a' : '#dc2626', fontWeight: 'bold' }}>{b.paymentStatus}</td>
+                {activeView === 'purchases' && (
+                  <>
+                    <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
+                    <td style={{ padding: '14px' }}>{b.airline}</td>
+                    <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
+                    <td style={{ padding: '14px' }}>{formatCurrency(b.totalValue)}</td>
+                    <td style={{ padding: '14px' }}>{formatCurrency(b.paidAmount)}</td>
+                    <td style={{ padding: '14px', color: b.totalValue - b.paidAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{formatCurrency(Math.max(0, b.totalValue - b.paidAmount))}</td>
+                    <td style={{ padding: '14px', color: '#16a34a', fontWeight: 'bold' }}>{b.paymentStatus}</td>
+                  </>
+                )}
                 <td style={{ padding: '14px' }}>
-                  <button 
-                    onClick={() => setSelectedPassenger(b)}
-                    style={{ padding: '6px 14px', backgroundColor: '#f3f4f6', color: '#2D60A8', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    Ver Perfil
-                  </button>
+                  {activeView === 'quotes' && (
+                    <button
+                      onClick={() => handleCompletePurchaseClick(b)}
+                      style={{ padding: '6px 14px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      Completar compra
+                    </button>
+                  )}
+                  {activeView === 'purchases' && (
+                    <button
+                      onClick={() => setSelectedPassenger(b)}
+                      style={{ padding: '6px 14px', backgroundColor: '#f3f4f6', color: '#2D60A8', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      Ver Perfil
+                    </button>
+                  )}
                   <button
                     onClick={() => handleEditClick(b)}
                     style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -329,7 +414,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       {showAddModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '720px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>{editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}</h3>
+            <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>
+              {completingQuote ? 'Completar cotización y registrar compra' : editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}
+            </h3>
+            {completingQuote && (
+              <p style={{ margin: '12px 0 0', color: '#4b5563' }}>
+                Completa los datos de la reserva, la aerolínea y el precio. Al guardar, la cotización pasará a Compras registradas.
+              </p>
+            )}
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -472,11 +564,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Código Reserva:</label>
-                  <input type="text" placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required={completingQuote} type="text" placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Aerolínea:</label>
-                  <input type="text" placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required={completingQuote} type="text" placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
               </div>
 
@@ -514,7 +606,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Estado del Pago:</label>
-                  <select required value={newBooking.paymentStatus} onChange={e => {
+                  <select required disabled={completingQuote} value={newBooking.paymentStatus} onChange={e => {
                     const paymentStatus = e.target.value;
                     setNewBooking({
                       ...newBooking,
@@ -524,7 +616,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   }} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
                     <option value="PENDIENTE">PENDIENTE</option>
                     <option value="ABONADO">ABONADO</option>
-                    <option value="PAGADO">PAGADO</option>
+                    {(!editingBookingId || completingQuote || activeView === 'purchases') && <option value="PAGADO">PAGADO</option>}
                   </select>
                 </div>
               </div>
@@ -556,9 +648,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  {editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
+                  {completingQuote ? 'Registrar compra y mover a Compras' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
                 </button>
-                <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); setCompletingQuote(false); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   Cancelar
                 </button>
               </div>

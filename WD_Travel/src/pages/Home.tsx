@@ -95,7 +95,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
     onBookingSubmit({
       id: Date.now().toString(),
-      purchaseDate: new Date().toISOString().split('T')[0],
+      quoteDate: new Date().toISOString().split('T')[0],
+      purchaseDate: '',
       firstName: passengerList[0].firstName,
       lastName: passengerList[0].lastName,
       passenger: passengerList[0].name,

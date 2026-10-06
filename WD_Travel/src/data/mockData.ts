@@ -8,6 +8,7 @@ export interface Passenger {
 
 export interface Booking {
   id: string;
+  quoteDate?: string;
   purchaseDate: string;
   firstName?: string;
   lastName?: string;
