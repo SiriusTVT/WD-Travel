@@ -23,6 +23,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [completingQuote, setCompletingQuote] = useState(false);
+  const [editingQuote, setEditingQuote] = useState(false);
   const [additionalPassengers, setAdditionalPassengers] = useState<Passenger[]>([]);
 
   // Estados de ubicación
@@ -40,6 +41,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     lastName: '',
     phone: '',
     cedula: '',
+    documentType: 'Cédula de ciudadanía',
     bookingCode: '',
     travelDate: '',
     returnDate: '',
@@ -65,6 +67,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       lastName: '',
       phone: '',
       cedula: '',
+      documentType: 'Cédula de ciudadanía',
       bookingCode: '',
       travelDate: '',
       returnDate: '',
@@ -79,6 +82,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   };
 
   const handleEditClick = (booking: Booking) => {
+    setCompletingQuote(false);
+    setEditingQuote(false);
     const routeParts = booking.route.split(' ➔ ');
     setOrigin(routeParts[0] || '');
     setDestination(routeParts[routeParts.length - 1] || '');
@@ -98,6 +103,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       ...primaryName,
       phone: booking.phone,
       cedula: booking.cedula,
+      documentType: booking.documentType || 'Cédula de ciudadanía',
       bookingCode: booking.bookingCode,
       travelDate: booking.travelDate,
       returnDate: booking.returnDate,
@@ -111,6 +117,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     });
     setEditingBookingId(booking.id);
     setShowAddModal(true);
+  };
+
+  const handleEditQuoteClick = (booking: Booking) => {
+    handleEditClick(booking);
+    setEditingQuote(true);
   };
 
   const handleDeleteClick = (booking: Booking) => {
@@ -128,8 +139,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       bookingCode: booking.bookingCode === 'PENDIENTE' ? '' : booking.bookingCode,
       airline: booking.airline === 'Por definir' ? '' : booking.airline,
       totalValue: booking.totalValue || '',
-      paidAmount: booking.totalValue || '',
-      paymentStatus: 'PAGADO'
+      paidAmount: booking.paidAmount || 0,
+      paymentStatus: 'PENDIENTE'
     }));
     setCompletingQuote(true);
   };
@@ -154,7 +165,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         lastName,
         name: passengerName,
         cedula: newBooking.cedula,
-        documentType: existingBooking?.documentType
+        documentType: newBooking.documentType
       },
       ...additionalPassengers.map(passenger => {
         const passengerFirstName = passenger.firstName?.trim() ?? '';
@@ -163,34 +174,65 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           ...passenger,
           firstName: passengerFirstName,
           lastName: passengerLastName,
+          documentType: passenger.documentType || 'Cédula de ciudadanía',
           name: joinName(passengerFirstName, passengerLastName)
         };
       })
     ];
-    const purchaseDate = newBooking.paymentStatus === 'PAGADO'
-      ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
-      : '';
-      const bookingData = {
-        ...newBooking,
-        purchaseDate,
-        documentType: existingBooking?.documentType,
-        firstName,
-        lastName,
-        passenger: passengerName,
-        totalValue,
-        paidAmount: newBooking.paymentStatus === 'PAGADO' ? totalValue : Math.min(Number(newBooking.paidAmount) || 0, totalValue),
-        passengers
-      };
+    const quoteData = {
+      firstName,
+      lastName,
+      passenger: passengerName,
+      phone: newBooking.phone,
+      cedula: newBooking.cedula,
+      documentType: newBooking.documentType,
+      route: finalRoute,
+      travelDate: newBooking.travelDate,
+      returnDate: newBooking.returnDate,
+      isTicket: newBooking.isTicket,
+      isPackage: newBooking.isPackage,
+      passengers
+    };
+
+    if (editingQuote && editingBookingId) {
+      setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
+        ? { ...booking, ...quoteData }
+        : booking
+      ));
+      setShowAddModal(false);
+      setEditingBookingId(null);
+      setEditingQuote(false);
+      resetForm();
+      return;
+    }
+
+    const purchaseDate = completingQuote
+      ? existingBooking?.purchaseDate || new Date().toISOString().split('T')[0]
+      : newBooking.paymentStatus === 'PAGADO'
+        ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
+        : existingBooking?.purchaseDate || '';
+    const paymentStatus = completingQuote && newBooking.paymentStatus === 'ABONADO'
+      ? 'PENDIENTE'
+      : newBooking.paymentStatus;
+    const bookingData = {
+      ...newBooking,
+      purchaseDate,
+      ...quoteData,
+      totalValue,
+      paymentStatus,
+      paidAmount: paymentStatus === 'PAGADO' && !completingQuote
+        ? totalValue
+        : Math.min(Number(newBooking.paidAmount) || 0, totalValue)
+    };
 
     if (editingBookingId) {
       setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
-        ? { id: booking.id, route: finalRoute, ...bookingData }
+        ? { id: booking.id, ...bookingData }
         : booking
       ));
     } else {
       const created: Booking = {
         id: Date.now().toString(),
-        route: finalRoute,
         ...bookingData
       };
       setBookings(currentBookings => [created, ...currentBookings]);
@@ -199,8 +241,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setShowAddModal(false);
     setEditingBookingId(null);
     setCompletingQuote(false);
+    setEditingQuote(false);
     resetForm();
-    setActiveView(newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes');
+    setActiveView(completingQuote || paymentStatus === 'PAGADO' ? 'purchases' : 'quotes');
   };
 
   const searchedBookings = bookings.filter(b =>
@@ -208,8 +251,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     b.phone.includes(search) ||
     b.cedula.includes(search)
   );
-  const pendingQuotes = searchedBookings.filter(booking => booking.paymentStatus !== 'PAGADO');
-  const purchases = searchedBookings.filter(booking => booking.paymentStatus === 'PAGADO');
+  const pendingQuotes = searchedBookings.filter(booking => !booking.purchaseDate);
+  const purchases = searchedBookings.filter(booking => Boolean(booking.purchaseDate));
   const filteredBookings = activeView === 'quotes' ? pendingQuotes : purchases;
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
@@ -231,7 +274,13 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Gestión centralizada de reservas y clientes</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setEditingBookingId(null);
+            setEditingQuote(false);
+            setCompletingQuote(false);
+            resetForm();
+            setShowAddModal(true);
+          }}
           style={{ padding: '12px 24px', backgroundColor: '#2D60A8', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(45,96,168,0.2)' }}
         >
           ➕ Registrar Cliente / Venta (WhatsApp)
@@ -335,7 +384,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     <td style={{ padding: '14px' }}>{formatCurrency(b.totalValue)}</td>
                     <td style={{ padding: '14px' }}>{formatCurrency(b.paidAmount)}</td>
                     <td style={{ padding: '14px', color: b.totalValue - b.paidAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{formatCurrency(Math.max(0, b.totalValue - b.paidAmount))}</td>
-                    <td style={{ padding: '14px', color: '#16a34a', fontWeight: 'bold' }}>{b.paymentStatus}</td>
+                    <td style={{ padding: '14px', color: b.paymentStatus === 'PAGADO' ? '#16a34a' : b.paymentStatus === 'PENDIENTE' ? '#dc2626' : '#d97706', fontWeight: 'bold' }}>{b.paymentStatus}</td>
                   </>
                 )}
                 <td style={{ padding: '14px' }}>
@@ -356,7 +405,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     </button>
                   )}
                   <button
-                    onClick={() => handleEditClick(b)}
+                    onClick={() => activeView === 'quotes' ? handleEditQuoteClick(b) : handleEditClick(b)}
                     style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
                   >
                     Editar
@@ -415,7 +464,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '720px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>
-              {completingQuote ? 'Completar cotización y registrar compra' : editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}
+              {completingQuote ? 'Completar cotización y registrar compra' : editingQuote ? 'Editar datos de la cotización' : editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}
             </h3>
             {completingQuote && (
               <p style={{ margin: '12px 0 0', color: '#4b5563' }}>
@@ -434,7 +483,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <input required type="text" placeholder="Ej: Pérez Gómez" value={newBooking.lastName} onChange={e => setNewBooking({...newBooking, lastName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cédula:</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de documento:</label>
+                  <select required value={newBooking.documentType} onChange={e => setNewBooking({ ...newBooking, documentType: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                    <option>Cédula de ciudadanía</option>
+                    <option>Tarjeta de identidad</option>
+                    <option>Registro civil</option>
+                    <option>Cédula de extranjería</option>
+                    <option>Pasaporte</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Número de identidad:</label>
                   <input required type="text" value={newBooking.cedula} onChange={e => setNewBooking({...newBooking, cedula: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
@@ -468,7 +527,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <input required type="text" placeholder="Nombres" value={passenger.firstName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                     <input required type="text" placeholder="Apellidos" value={passenger.lastName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                    <input required type="text" placeholder="Cédula" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <select required value={passenger.documentType || 'Cédula de ciudadanía'} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, documentType: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                      <option>Cédula de ciudadanía</option>
+                      <option>Tarjeta de identidad</option>
+                      <option>Registro civil</option>
+                      <option>Cédula de extranjería</option>
+                      <option>Pasaporte</option>
+                    </select>
+                    <input required type="text" placeholder="Número de identidad" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                   </div>
                 </div>
               ))}
@@ -497,7 +563,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               </div>
 
               {/* Opción de Escalas */}
-              <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+              {!editingQuote && <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
                 <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#9a3412', marginBottom: '8px' }}>
                   ¿El vuelo tiene escalas / conexiones?:
                 </label>
@@ -559,9 +625,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <strong>Ruta completa:</strong>{' '}
                   {[origin || 'Origen', ...(hasLayover ? layovers.map((stop, index) => stop || `Escala ${index + 1}`) : []), destination || 'Destino'].join(' ➔ ')}
                 </div>
-              </div>
+              </div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Código Reserva:</label>
                   <input required={completingQuote} type="text" placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
@@ -570,7 +636,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Aerolínea:</label>
                   <input required={completingQuote} type="text" placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
-              </div>
+              </div>}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
@@ -583,16 +649,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
               </div>
 
-              <div>
+              {!editingQuote && <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Método de Pago:</label>
                 <select value={newBooking.paymentMethod} onChange={e => setNewBooking({...newBooking, paymentMethod: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
                   <option value="TRANSFERENCIA">TRANSFERENCIA</option>
                   <option value="EFECTIVO">EFECTIVO</option>
                   <option value="TARJETA">TARJETA</option>
                 </select>
-              </div>
+              </div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Valor Total (COP):</label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
@@ -606,7 +672,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Estado del Pago:</label>
-                  <select required disabled={completingQuote} value={newBooking.paymentStatus} onChange={e => {
+                  <select required value={newBooking.paymentStatus} onChange={e => {
                     const paymentStatus = e.target.value;
                     setNewBooking({
                       ...newBooking,
@@ -619,9 +685,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     {(!editingBookingId || completingQuote || activeView === 'purchases') && <option value="PAGADO">PAGADO</option>}
                   </select>
                 </div>
-              </div>
+              </div>}
 
-              {newBooking.paymentStatus === 'ABONADO' && (
+              {!editingQuote && newBooking.paymentStatus === 'ABONADO' && (
                 <div style={{ padding: '12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad Abonada (COP):</label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
@@ -650,7 +716,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   {completingQuote ? 'Registrar compra y mover a Compras' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
                 </button>
-                <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); setCompletingQuote(false); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); setCompletingQuote(false); setEditingQuote(false); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   Cancelar
                 </button>
               </div>
