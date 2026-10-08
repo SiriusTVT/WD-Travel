@@ -14,6 +14,16 @@ import {
   normalizeDocumentNumber
 } from '../formValidation';
 
+declare global {
+  interface Window {
+    instgrm?: {
+      Embeds?: {
+        process: () => void;
+      };
+    };
+  }
+}
+
 type BookingType = 'TIQUETE' | 'PAQUETE';
 
 const travelPackages = [
@@ -147,6 +157,20 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     setDestination(destination);
     scrollToForm();
   };
+
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src="https://www.instagram.com/embed.js"]');
+    if (existingScript) {
+      window.instgrm?.Embeds?.process();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://www.instagram.com/embed.js';
+    script.onload = () => window.instgrm?.Embeds?.process();
+    document.body.appendChild(script);
+  }, []);
 
   useEffect(() => () => {
     if (heroVideoFadeTimeoutRef.current) clearTimeout(heroVideoFadeTimeoutRef.current);
@@ -339,16 +363,15 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           </div>
         </div>
         <div className="presentation-video">
-          <a
-            className="instagram-video-link"
-            href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
-            target="_blank"
-            rel="noreferrer"
+          <blockquote
+            className="instagram-media"
+            data-instgrm-permalink="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
+            data-instgrm-version="14"
           >
-            <span className="instagram-video-icon" aria-hidden="true">▶</span>
-            <strong>Ver el video en Instagram</strong>
-            <span>Se abrirá en una pestaña nueva</span>
-          </a>
+            <a href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading" target="_blank" rel="noreferrer">
+              Ver esta publicación en Instagram
+            </a>
+          </blockquote>
         </div>
       </section>
 

@@ -124,47 +124,21 @@ h3 {
   box-shadow: 0 12px 30px rgba(23, 57, 100, 0.12);
 }
 
-.instagram-video-link {
-  display: grid;
-  min-height: 250px;
-  align-content: center;
-  justify-items: center;
-  gap: 10px;
-  padding: 28px;
-  color: #2d60a8;
-  background: linear-gradient(145deg, #fff, #f1f6ff);
-  text-align: center;
-  text-decoration: none;
+.presentation-video .instagram-media {
+  width: calc(100% - 2px) !important;
+  max-width: 400px !important;
+  min-width: 0 !important;
+  margin: 1px !important;
+  background: #fff !important;
+  border: 0 !important;
 }
 
-.instagram-video-link:hover,
-.instagram-video-link:focus-visible {
-  background: #eaf2ff;
-}
-
-.instagram-video-link strong {
-  font-size: 1.05rem;
-}
-
-.instagram-video-link > span:last-child {
-  color: #64748b;
-  font-size: 0.85rem;
-}
-
-.instagram-video-icon {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  padding-left: 3px;
-  color: #fff;
-  background: #d62976;
-  border-radius: 50%;
-  font-size: 1.35rem;
-}
-
-.presentation-video a {
+.presentation-video .instagram-media > a {
+  display: block;
   width: 100%;
+  padding: 24px 12px;
+  color: #2d60a8;
+  text-align: center;
 }
 
 .hero-section {
