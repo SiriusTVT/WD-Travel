@@ -309,14 +309,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <p>
             Descubre nuestra presentación y conoce las experiencias, servicios y oportunidades que tenemos para acompañarte en tu próximo destino.
           </p>
-          <a
-            className="presentation-link"
-            href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Ver en Instagram
-          </a>
           <div className="community-links" aria-label="Enlaces de nuestra comunidad">
             <a href="https://www.instagram.com/w.d.travel3/" target="_blank" rel="noreferrer" aria-label="Visitar WD Travel en Instagram">
               <svg viewBox="0 0 24 24" aria-hidden="true">
