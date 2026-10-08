@@ -4,6 +4,12 @@ export const MAX_TRAVELERS = 20;
 export const MAX_CHILD_AGE = 17;
 export const MAX_BOOKING_AMOUNT = 1_000_000_000;
 
+export const clampIntegerInput = (value: string, max: number) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return String(Math.min(Number(digits), max));
+};
+
 export const isValidPersonName = (value: string) =>
   /^[\p{L}][\p{L}\s'-]{1,59}$/u.test(value.trim());
 

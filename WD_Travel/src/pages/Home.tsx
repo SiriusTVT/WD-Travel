@@ -3,6 +3,7 @@ import { LocationSelector } from '../components/LocationSelector.tsx';
 import type { Booking } from '../data/mockData';
 import {
   getLocalDateString,
+  clampIntegerInput,
   isValidContactPhone,
   isValidDate,
   isValidDocumentNumber,
@@ -116,15 +117,19 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [childAges, setChildAges] = useState<string[]>([]);
 
   const handleTravelerCountChange = (type: 'adults' | 'children', value: string) => {
-    if (type === 'adults') setAdultCount(value);
-    else {
-      setChildCount(value);
-      const nextChildCount = Number(value);
-      if (Number.isInteger(nextChildCount) && nextChildCount >= 0 && nextChildCount <= 19) {
+    if (type === 'adults') {
+      const nextAdultCount = clampIntegerInput(value, MAX_TRAVELERS - childCountValue);
+      setAdultCount(nextAdultCount);
+    } else {
+      const nextChildCount = clampIntegerInput(value, MAX_TRAVELERS - (Number(adultCount) || 1));
+      setChildCount(nextChildCount);
+      if (nextChildCount !== '') {
         setChildAges(currentAges => Array.from(
-          { length: nextChildCount },
+          { length: Number(nextChildCount) },
           (_, index) => currentAges[index] ?? ''
         ));
+      } else {
+        setChildAges([]);
       }
     }
   };
@@ -556,11 +561,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 <div className="travel-count-grid">
                   <div>
                     <label htmlFor="adult-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Adultos:</label>
-                    <input id="adult-count" required type="number" min="1" max={MAX_TRAVELERS - childCountValue} step="1" value={adultCount} onChange={e => handleTravelerCountChange('adults', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input id="adult-count" required type="text" inputMode="numeric" minLength={1} pattern="[0-9]{1,2}" title={`Ingresa un número entero entre 1 y ${MAX_TRAVELERS - childCountValue}.`} value={adultCount} onChange={e => handleTravelerCountChange('adults', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
                     <label htmlFor="child-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Niños:</label>
-                    <input id="child-count" required type="number" min="0" max={MAX_TRAVELERS - (Number(adultCount) || 1)} step="1" value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input id="child-count" required type="text" inputMode="numeric" minLength={1} pattern="[0-9]{1,2}" title={`Ingresa un número entero entre 0 y ${MAX_TRAVELERS - (Number(adultCount) || 1)}.`} value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
@@ -575,12 +580,13 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                         <input
                           id={`child-age-${index}`}
                           required
-                          type="number"
-                          min="0"
-                          max={MAX_CHILD_AGE}
-                          step="1"
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          pattern="[0-9]{1,2}"
+                          title={`Ingresa una edad entre 0 y ${MAX_CHILD_AGE} años.`}
                           value={age}
-                          onChange={e => setChildAges(currentAges => currentAges.map((currentAge, ageIndex) => ageIndex === index ? e.target.value : currentAge))}
+                          onChange={e => setChildAges(currentAges => currentAges.map((currentAge, ageIndex) => ageIndex === index ? clampIntegerInput(e.target.value, MAX_CHILD_AGE) : currentAge))}
                           style={{ width: '100%', padding: '10px', borderRadius: '8px' }}
                         />
                       </div>

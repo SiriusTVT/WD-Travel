@@ -3,6 +3,7 @@ import { type Booking, type Passenger } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { formatDisplayDate } from '../formatDate';
 import {
+  clampIntegerInput,
   getLocalDateString,
   isValidColombianPhone,
   isValidDate,
@@ -685,15 +686,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                       <input
                         id="quote-adult-count"
                         required
-                        type="number"
-                        min="1"
-                        max={MAX_TRAVELERS - (Number(newBooking.childCount) || 0)}
-                        step="1"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]{1,2}"
+                        title={`Ingresa un número entero entre 1 y ${MAX_TRAVELERS - (Number(newBooking.childCount) || 0)}.`}
                         value={newBooking.adultCount}
-                        onChange={e => setNewBooking(current => ({
-                          ...current,
-                          adultCount: e.target.value === '' ? '' : Number(e.target.value)
-                        }))}
+                        onChange={e => setNewBooking(current => {
+                          const maxAdults = MAX_TRAVELERS - (Number(current.childCount) || 0);
+                          const adultCount = clampIntegerInput(e.target.value, maxAdults);
+                          return { ...current, adultCount: adultCount === '' ? '' : Number(adultCount) };
+                        })}
                         style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
                       />
                     </div>
@@ -702,28 +704,26 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                       <input
                         id="quote-child-count"
                         required
-                        type="number"
-                        min="0"
-                        max={MAX_TRAVELERS - (Number(newBooking.adultCount) || 1)}
-                        step="1"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]{1,2}"
+                        title={`Ingresa un número entero entre 0 y ${MAX_TRAVELERS - (Number(newBooking.adultCount) || 1)}.`}
                         value={newBooking.childCount}
                         onChange={e => {
-                          const value = e.target.value;
-                          if (value === '') {
-                            setNewBooking(current => ({ ...current, childCount: '' }));
-                            return;
-                          }
-                          const childCount = Number(value);
-                          setNewBooking(current => ({
-                            ...current,
-                            childCount,
-                            childAges: Number.isInteger(childCount) && childCount >= 0
-                              ? Array.from(
+                          setNewBooking(current => {
+                            const maxChildren = MAX_TRAVELERS - (Number(current.adultCount) || 1);
+                            const value = clampIntegerInput(e.target.value, maxChildren);
+                            if (value === '') return { ...current, childCount: '', childAges: [] };
+                            const childCount = Number(value);
+                            return {
+                              ...current,
+                              childCount,
+                              childAges: Array.from(
                                 { length: childCount },
                                 (_, index) => current.childAges[index] ?? ''
                               )
-                              : current.childAges
-                          }));
+                            };
+                          });
                         }}
                         style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
                       />
@@ -737,13 +737,15 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                           <input
                             id={`quote-child-age-${index}`}
                             required
-                            type="number"
-                            min="0"
-                            max={MAX_CHILD_AGE}
-                            step="1"
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={2}
+                            pattern="[0-9]{1,2}"
+                            title={`Ingresa una edad entre 0 y ${MAX_CHILD_AGE} años.`}
                             value={age}
                             onChange={e => {
-                              const childAge = e.target.value === '' ? '' : Number(e.target.value);
+                              const normalizedAge = clampIntegerInput(e.target.value, MAX_CHILD_AGE);
+                              const childAge = normalizedAge === '' ? '' : Number(normalizedAge);
                               setNewBooking(current => ({
                                 ...current,
                                 childAges: current.childAges.map((currentAge, ageIndex) => ageIndex === index ? childAge : currentAge)
