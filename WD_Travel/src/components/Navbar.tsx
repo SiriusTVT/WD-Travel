@@ -23,6 +23,15 @@ const socialLinks = [
       </svg>
     ),
   },
+  {
+    name: 'Facebook',
+    href: 'https://www.facebook.com/people/WDTravel/61574445834395/',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M13.6 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V4a22 22 0 0 0-2.4-.1c-2.4 0-4 1.5-4 4.1V10H8v3h2.5v8h3.1Z" fill="currentColor" />
+      </svg>
+    ),
+  },
 ];
 
 interface NavbarProps {
