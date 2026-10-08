@@ -20,6 +20,9 @@ export interface Booking {
   bookingCode: string;
   travelDate: string;
   returnDate: string;
+  adultCount?: number;
+  childCount?: number;
+  childAges?: number[];
   isTicket: boolean;
   isPackage: boolean;
   airline: string;

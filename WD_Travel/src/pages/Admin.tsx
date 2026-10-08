@@ -46,6 +46,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     bookingCode: '',
     travelDate: '',
     returnDate: '',
+    adultCount: 1 as number | undefined,
+    childCount: 0 as number | undefined,
+    childAges: [] as (number | '')[],
     isTicket: false,
     isPackage: true,
     airline: '',
@@ -72,6 +75,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       bookingCode: '',
       travelDate: '',
       returnDate: '',
+      adultCount: 1,
+      childCount: 0,
+      childAges: [],
       isTicket: false,
       isPackage: true,
       airline: '',
@@ -108,6 +114,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       bookingCode: booking.bookingCode,
       travelDate: booking.travelDate,
       returnDate: booking.returnDate,
+      adultCount: booking.adultCount ?? 1,
+      childCount: booking.childCount ?? 0,
+      childAges: Array.from(
+        { length: booking.childCount ?? 0 },
+        (_, index) => booking.childAges?.[index] ?? ''
+      ),
       isTicket: booking.isTicket,
       isPackage: booking.isPackage,
       airline: booking.airline,
@@ -150,6 +162,23 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (editingBookingId) {
+      const adultCount = Number(newBooking.adultCount);
+      const childCount = Number(newBooking.childCount);
+      if (
+        !Number.isInteger(adultCount) ||
+        !Number.isInteger(childCount) ||
+        adultCount < 1 ||
+        childCount < 0 ||
+        adultCount + childCount > 20 ||
+        newBooking.childAges.length !== childCount ||
+        newBooking.childAges.some(age => age === '' || !Number.isInteger(Number(age)) || Number(age) < 0)
+      ) {
+        window.alert('Verifica la cantidad de adultos y niños, e indica la edad de cada niño.');
+        return;
+      }
+    }
+
     if (completingQuote && (!newBooking.bookingCode.trim() || !newBooking.airline.trim() || Number(newBooking.totalValue) <= 0)) {
       window.alert('Completa el código de reserva, la aerolínea y un precio mayor que cero para registrar la compra.');
       return;
@@ -191,9 +220,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       route: finalRoute,
       travelDate: newBooking.travelDate,
       returnDate: newBooking.returnDate,
+      adultCount: newBooking.adultCount,
+      childCount: newBooking.childCount,
+      childAges: newBooking.childAges.map(Number),
       isTicket: newBooking.isTicket,
       isPackage: newBooking.isPackage,
-      passengers
+      passengers: editingBookingId && existingBooking ? existingBooking.passengers : passengers
     };
 
     if (editingQuote && editingBookingId) {
@@ -333,6 +365,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               <th style={{ padding: '14px' }}>FECHA VIAJE</th>
               <th style={{ padding: '14px' }}>FECHA REGRESO</th>
               <th style={{ padding: '14px' }}>TIPO</th>
+              <th style={{ padding: '14px' }}>VIAJEROS</th>
               {activeView === 'purchases' && (
                 <>
                   <th style={{ padding: '14px' }}>COD RESERVA</th>
@@ -350,7 +383,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           <tbody>
             {filteredBookings.length === 0 ? (
               <tr>
-                <td colSpan={activeView === 'quotes' ? 8 : 15} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={activeView === 'quotes' ? 9 : 16} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
                   {activeView === 'quotes' ? 'No hay cotizaciones pendientes.' : 'Todavía no hay compras registradas.'}
                 </td>
               </tr>
@@ -385,6 +418,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.returnDate)}</td>
                 <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
+                <td style={{ padding: '14px' }}>
+                  {b.adultCount ?? 'Sin dato'} adulto(s), {b.childCount ?? 'Sin dato'} niño(s)
+                  {(b.childAges?.length ?? 0) > 0 && (
+                    <div style={{ marginTop: '4px', color: '#4b5563' }}>
+                      Edades: {b.childAges?.map(age => `${age} años`).join(', ')}
+                    </div>
+                  )}
+                </td>
                 {activeView === 'purchases' && (
                   <>
                     <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
@@ -439,6 +480,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>👤 Perfil del Cliente</h3>
             <p style={{ marginTop: '15px' }}><strong>Nombre:</strong> {selectedPassenger.passenger}</p>
             <p><strong>{selectedPassenger.documentType || 'Número de identidad'}:</strong> {selectedPassenger.cedula || 'No registrado'}</p>
+            <p><strong>Viajeros:</strong> {selectedPassenger.adultCount ?? 'Sin dato'} adulto(s), {selectedPassenger.childCount ?? 'Sin dato'} niño(s)</p>
+            {(selectedPassenger.childAges?.length ?? 0) > 0 && (
+              <p><strong>Edades de los niños:</strong> {selectedPassenger.childAges?.map(age => `${age} años`).join(', ')}</p>
+            )}
             {selectedPassenger.passengers?.length > 1 && (
               <div style={{ margin: '15px 0', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <strong>Pasajeros del registro:</strong>
@@ -482,7 +527,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             )}
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombres:</label>
                   <input required type="text" placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
@@ -509,9 +554,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Celular:</label>
                   <input required type="text" value={newBooking.phone} onChange={e => setNewBooking({...newBooking, phone: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
-              </div>
+              </div>}
 
-              <div>
+              {!editingBookingId && <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad de pasajeros:</label>
                 <select
                   value={additionalPassengers.length + 1}
@@ -528,9 +573,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     <option key={count} value={count}>{count}</option>
                   ))}
                 </select>
-              </div>
+              </div>}
 
-              {additionalPassengers.map((passenger, index) => (
+              {!editingBookingId && additionalPassengers.map((passenger, index) => (
                 <div key={index} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <strong style={{ display: 'block', marginBottom: '8px' }}>Pasajero {index + 2}</strong>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -547,6 +592,74 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   </div>
                 </div>
               ))}
+
+              {editingBookingId && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <strong>Personas que viajan</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label htmlFor="quote-adult-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Adultos:</label>
+                      <input
+                        id="quote-adult-count"
+                        required
+                        type="number"
+                        min="1"
+                        max={20 - (newBooking.childCount ?? 0)}
+                        value={newBooking.adultCount ?? 1}
+                        onChange={e => setNewBooking(current => ({ ...current, adultCount: Number(e.target.value) }))}
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="quote-child-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Niños:</label>
+                      <input
+                        id="quote-child-count"
+                        required
+                        type="number"
+                        min="0"
+                        max={20 - (newBooking.adultCount ?? 1)}
+                        value={newBooking.childCount ?? 0}
+                        onChange={e => {
+                          const childCount = Number(e.target.value) || 0;
+                          setNewBooking(current => ({
+                            ...current,
+                            childCount,
+                            childAges: Array.from(
+                              { length: childCount },
+                              (_, index) => current.childAges[index] ?? ''
+                            )
+                          }));
+                        }}
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                      />
+                    </div>
+                  </div>
+                  {(newBooking.childCount ?? 0) > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {newBooking.childAges.map((age, index) => (
+                        <div key={index}>
+                          <label htmlFor={`quote-child-age-${index}`} style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Edad del niño {index + 1}:</label>
+                          <input
+                            id={`quote-child-age-${index}`}
+                            required
+                            type="number"
+                            min="0"
+                            value={age}
+                            onChange={e => {
+                              const childAge = e.target.value === '' ? '' : Number(e.target.value);
+                              setNewBooking(current => ({
+                                ...current,
+                                childAges: current.childAges.map((currentAge, ageIndex) => ageIndex === index ? childAge : currentAge)
+                              }));
+                            }}
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de servicio:</label>

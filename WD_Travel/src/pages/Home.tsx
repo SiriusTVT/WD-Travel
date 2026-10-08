@@ -12,13 +12,6 @@ declare global {
   }
 }
 
-interface Traveler {
-  firstName: string;
-  lastName: string;
-  documentType: string;
-  documentNumber: string;
-}
-
 type BookingType = 'TIQUETE' | 'PAQUETE';
 
 const travelPackages = [
@@ -101,43 +94,27 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [travelDate, setTravelDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [bookingType, setBookingType] = useState<BookingType>('TIQUETE');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [documentType, setDocumentType] = useState('Cédula de ciudadanía');
+  const [documentNumber, setDocumentNumber] = useState('');
   const [adultCount, setAdultCount] = useState('1');
   const [childCount, setChildCount] = useState('0');
-  const adultCountValue = Number(adultCount) || 1;
   const childCountValue = Number(childCount) || 0;
-  const [travelers, setTravelers] = useState<Traveler[]>([
-    { firstName: '', lastName: '', documentType: 'Cédula de ciudadanía', documentNumber: '' }
-  ]);
-
-  const syncTravelersWithCounts = (adultValue: string, childValue: string) => {
-    if (adultValue === '' || childValue === '') return;
-    const nextAdultCount = Number(adultValue);
-    const nextChildCount = Number(childValue);
-    if (
-      !Number.isInteger(nextAdultCount) ||
-      !Number.isInteger(nextChildCount) ||
-      nextAdultCount < 1 ||
-      nextChildCount < 0 ||
-      nextAdultCount + nextChildCount > 20
-    ) return;
-
-    setTravelers(currentTravelers => Array.from(
-      { length: nextAdultCount + nextChildCount },
-      (_, index) => currentTravelers[index] ?? {
-        firstName: '',
-        lastName: '',
-        documentType: 'Cédula de ciudadanía',
-        documentNumber: ''
-      }
-    ));
-  };
+  const [childAges, setChildAges] = useState<string[]>([]);
 
   const handleTravelerCountChange = (type: 'adults' | 'children', value: string) => {
-    const nextAdultCount = type === 'adults' ? value : adultCount;
-    const nextChildCount = type === 'children' ? value : childCount;
     if (type === 'adults') setAdultCount(value);
-    else setChildCount(value);
-    syncTravelersWithCounts(nextAdultCount, nextChildCount);
+    else {
+      setChildCount(value);
+      const nextChildCount = Number(value);
+      if (Number.isInteger(nextChildCount) && nextChildCount >= 0 && nextChildCount <= 19) {
+        setChildAges(currentAges => Array.from(
+          { length: nextChildCount },
+          (_, index) => currentAges[index] ?? ''
+        ));
+      }
+    }
   };
 
   const normalizeTravelerCounts = () => {
@@ -145,13 +122,13 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     const nextChildCount = childCount || '0';
     setAdultCount(nextAdultCount);
     setChildCount(nextChildCount);
-    syncTravelersWithCounts(nextAdultCount, nextChildCount);
-  };
-
-  const updateTraveler = (index: number, field: keyof Traveler, value: string) => {
-    setTravelers(currentTravelers => currentTravelers.map((traveler, travelerIndex) =>
-      travelerIndex === index ? { ...traveler, [field]: value } : traveler
-    ));
+    const normalizedChildCount = Number(nextChildCount);
+    if (Number.isInteger(normalizedChildCount) && normalizedChildCount >= 0 && normalizedChildCount <= 19) {
+      setChildAges(currentAges => Array.from(
+        { length: normalizedChildCount },
+        (_, index) => currentAges[index] ?? ''
+      ));
+    }
   };
 
   const scrollToForm = () => {
@@ -196,28 +173,45 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const passengerList = travelers.map(traveler => ({
-      firstName: traveler.firstName.trim(),
-      lastName: traveler.lastName.trim(),
-      name: `${traveler.firstName} ${traveler.lastName}`.trim(),
-      cedula: traveler.documentNumber,
-      documentType: traveler.documentType
-    }));
+    const normalizedAdultCount = Number(adultCount);
+    const normalizedChildCount = Number(childCount);
+    if (
+      !Number.isInteger(normalizedAdultCount) ||
+      !Number.isInteger(normalizedChildCount) ||
+      normalizedAdultCount < 1 ||
+      normalizedChildCount < 0 ||
+      normalizedAdultCount + normalizedChildCount > 20 ||
+      childAges.slice(0, normalizedChildCount).some(age => age === '')
+    ) {
+      window.alert('Verifica la cantidad de adultos y niños, e indica la edad de cada niño.');
+      return;
+    }
+    const passengerName = `${firstName} ${lastName}`.trim();
+    const titular = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      name: passengerName,
+      cedula: documentNumber,
+      documentType
+    };
 
     onBookingSubmit({
       id: Date.now().toString(),
       quoteDate: new Date().toISOString().split('T')[0],
       purchaseDate: '',
-      firstName: passengerList[0].firstName,
-      lastName: passengerList[0].lastName,
-      passenger: passengerList[0].name,
+      firstName: titular.firstName,
+      lastName: titular.lastName,
+      passenger: titular.name,
       phone: `${phoneCountryCode} ${phone.trim()}`,
-      cedula: passengerList[0].cedula,
-      documentType: passengerList[0].documentType,
+      cedula: titular.cedula,
+      documentType: titular.documentType,
       route: `${origin} ➔ ${destination}`,
       bookingCode: 'PENDIENTE',
       travelDate,
       returnDate,
+      adultCount: normalizedAdultCount,
+      childCount: normalizedChildCount,
+      childAges: childAges.slice(0, normalizedChildCount).map(Number),
       isTicket: bookingType === 'TIQUETE',
       isPackage: bookingType === 'PAQUETE',
       airline: 'Por definir',
@@ -225,7 +219,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       totalValue: 0,
       paymentStatus: 'PENDIENTE',
       paidAmount: 0,
-      passengers: passengerList
+      passengers: [titular]
     });
     setSubmitted(true);
   };
@@ -292,7 +286,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <span className="section-eyebrow">Nuestra esencia</span>
           <h2 id="about-title">Más que una agencia: tu aliado en cada paso del viaje</h2>
           <p>
-            En <strong>W.D Travel</strong> somos más que una agencia de viajes digital: somos tu aliado estratégico en cada paso del camino. Nacimos para eliminar la incertidumbre y las horas perdidas al planificar un itinerario, transformando el proceso de viaje en una experiencia fluida, transparente y adaptada al presupuesto y estilo de vida de cada viajero.
+            En <strong>W.D Travel</strong> somos tu aliado estratégico en cada paso del camino, con atención digital y un punto físico en el Centro Comercial La Estación, Torre B – Local BP-05. Nacimos para eliminar la incertidumbre y las horas perdidas al planificar un itinerario, transformando el proceso de viaje en una experiencia fluida, transparente y adaptada al presupuesto y estilo de vida de cada viajero.
           </p>
           <p>
             Nuestra misión es conectar a personas y familias con sus destinos ideales brindando respaldo real de principio a fin. Ya sea que busques una escapada vacacional, apoyo en reubicación internacional o la tranquilidad de contar con asistencia integral ante cualquier imprevisto, en <strong>W.D Travel</strong> viajas con la certeza de tener un equipo experto cuidando cada detalle.
@@ -392,14 +386,16 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       <div ref={formRef} style={{ padding: '40px 20px 60px 20px' }}>
         <div className="quote-card" style={{ maxWidth: '850px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}>
 
-          <div style={{ textAlign: 'center', marginBottom: '35px' }}>
-            <h2 style={{ color: '#2D60A8', fontSize: '1.8rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
-              Completa tu cotización
-            </h2>
-            <p style={{ color: '#6b7280', fontSize: '1rem', margin: 0 }}>
-              Cuéntanos los detalles de tu viaje y te enviaremos una opción a tu medida.
-            </p>
-          </div>
+          {!submitted && (
+            <div style={{ textAlign: 'center', marginBottom: '35px' }}>
+              <h2 style={{ color: '#2D60A8', fontSize: '1.8rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
+                Completa tu cotización
+              </h2>
+              <p style={{ color: '#6b7280', fontSize: '1rem', margin: 0 }}>
+                Cuéntanos los detalles de tu viaje y te enviaremos una opción a tu medida.
+              </p>
+            </div>
+          )}
 
           {submitted ? (
             <div style={{ padding: '30px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', borderRadius: '12px', textAlign: 'center' }}>
@@ -418,38 +414,31 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
               <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ margin: '0 0 15px 0', color: '#2D60A8', fontSize: '1.1rem' }}>Datos de las personas que viajan</h3>
-                {travelers.map((traveler, index) => (
-                  <div key={index} style={{ marginBottom: index < travelers.length - 1 ? '15px' : 0, padding: '12px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <strong style={{ display: 'block', marginBottom: '10px', color: '#374151' }}>
-                      {index < adultCountValue ? `Adulto ${index + 1}` : `Niño ${index - adultCountValue + 1}`}
-                    </strong>
-                    <div className="traveler-fields-grid">
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Nombres:</label>
-                        <input required type="text" placeholder="Ej.: María José" value={traveler.firstName} onChange={e => updateTraveler(index, 'firstName', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Apellidos:</label>
-                        <input required type="text" placeholder="Ej.: Pérez Gómez" value={traveler.lastName} onChange={e => updateTraveler(index, 'lastName', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de documento de identidad:</label>
-                        <select required value={traveler.documentType} onChange={e => updateTraveler(index, 'documentType', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
-                          <option>Cédula de ciudadanía</option>
-                          <option>Tarjeta de identidad</option>
-                          <option>Registro civil</option>
-                          <option>Cédula de extranjería</option>
-                          <option>Pasaporte</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Número de identidad:</label>
-                        <input required type="text" placeholder="Escribe el número de identidad" value={traveler.documentNumber} onChange={e => updateTraveler(index, 'documentNumber', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
-                      </div>
-                    </div>
+                <h3 style={{ margin: '0 0 15px 0', color: '#2D60A8', fontSize: '1.1rem' }}>Datos del titular</h3>
+                <div className="traveler-fields-grid">
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Nombres:</label>
+                    <input required type="text" placeholder="Ej.: María José" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
-                ))}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Apellidos:</label>
+                    <input required type="text" placeholder="Ej.: Pérez Gómez" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de documento de identidad:</label>
+                    <select required value={documentType} onChange={e => setDocumentType(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
+                      <option>Cédula de ciudadanía</option>
+                      <option>Tarjeta de identidad</option>
+                      <option>Registro civil</option>
+                      <option>Cédula de extranjería</option>
+                      <option>Pasaporte</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Número de identidad:</label>
+                    <input required type="text" placeholder="Escribe el número de identidad" value={documentNumber} onChange={e => setDocumentNumber(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -503,10 +492,32 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   </div>
                   <div>
                     <label htmlFor="child-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Niños:</label>
-                    <input id="child-count" required type="number" min="0" max={20 - adultCountValue} value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input id="child-count" required type="number" min="0" max={20 - (Number(adultCount) || 1)} value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
+
+              {childCountValue > 0 && (
+                <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <strong style={{ display: 'block', marginBottom: '12px', color: '#374151' }}>Edad de los niños:</strong>
+                  <div className="travel-count-grid">
+                    {childAges.slice(0, childCountValue).map((age, index) => (
+                      <div key={index}>
+                        <label htmlFor={`child-age-${index}`} style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Edad del niño {index + 1}:</label>
+                        <input
+                          id={`child-age-${index}`}
+                          required
+                          type="number"
+                          min="0"
+                          value={age}
+                          onChange={e => setChildAges(currentAges => currentAges.map((currentAge, ageIndex) => ageIndex === index ? e.target.value : currentAge))}
+                          style={{ width: '100%', padding: '10px', borderRadius: '8px' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de servicio:</label>
