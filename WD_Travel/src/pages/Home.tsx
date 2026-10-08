@@ -14,16 +14,6 @@ import {
   normalizeDocumentNumber
 } from '../formValidation';
 
-declare global {
-  interface Window {
-    instgrm?: {
-      Embeds?: {
-        process: () => void;
-      };
-    };
-  }
-}
-
 type BookingType = 'TIQUETE' | 'PAQUETE';
 
 const travelPackages = [
@@ -158,20 +148,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     scrollToForm();
   };
 
-  useEffect(() => {
-    const existingScript = document.querySelector('script[src="https://www.instagram.com/embed.js"]');
-    if (existingScript) {
-      window.instgrm?.Embeds?.process();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = 'https://www.instagram.com/embed.js';
-    script.onload = () => window.instgrm?.Embeds?.process();
-    document.body.appendChild(script);
-  }, []);
-
   useEffect(() => () => {
     if (heroVideoFadeTimeoutRef.current) clearTimeout(heroVideoFadeTimeoutRef.current);
   }, []);
@@ -282,13 +258,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <source src="/wd-travel-hero.mp4" type="video/mp4" />
         </video>
         <div className="hero-content" style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <h1 className="hero-title" style={{ fontSize: '3rem', fontWeight: '800', margin: '0 0 15px 0' }}>
-            ¡Bienvenido a WD Travel!
-          </h1>
-          <p style={{ fontSize: '1.25rem', color: '#e0e7ff', maxWidth: '700px', margin: '0 auto 35px auto' }}>
-            Tu agencia de confianza para planear tus próximas vacaciones, tiquetes aéreos y paquetes nacionales e internacionales.
-          </p>
-
           <button
             onClick={scrollToForm}
             style={{
@@ -370,15 +339,16 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           </div>
         </div>
         <div className="presentation-video">
-          <blockquote
-            className="instagram-media"
-            data-instgrm-permalink="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
-            data-instgrm-version="14"
+          <a
+            className="instagram-video-link"
+            href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
+            target="_blank"
+            rel="noreferrer"
           >
-            <a href="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading" target="_blank" rel="noreferrer">
-              Ver esta publicación en Instagram
-            </a>
-          </blockquote>
+            <span className="instagram-video-icon" aria-hidden="true">▶</span>
+            <strong>Ver el video en Instagram</strong>
+            <span>Se abrirá en una pestaña nueva</span>
+          </a>
         </div>
       </section>
 
