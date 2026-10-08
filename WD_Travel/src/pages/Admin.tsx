@@ -10,6 +10,7 @@ const getNameParts = (firstName = '', lastName = '', fullName = '') => {
 };
 
 const joinName = (firstName: string, lastName: string) => `${firstName.trim()} ${lastName.trim()}`.trim();
+const PAYMENT_METHODS = ['TRANSFERENCIA', 'EFECTIVO', 'TARJETA'];
 
 interface AdminProps {
   bookings: Booking[];
@@ -140,6 +141,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       airline: booking.airline === 'Por definir' ? '' : booking.airline,
       totalValue: booking.totalValue || '',
       paidAmount: booking.paidAmount || 0,
+      paymentMethod: PAYMENT_METHODS.includes(booking.paymentMethod) ? booking.paymentMethod : 'TRANSFERENCIA',
       paymentStatus: 'PENDIENTE'
     }));
     setCompletingQuote(true);
@@ -211,16 +213,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       : newBooking.paymentStatus === 'PAGADO'
         ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
         : existingBooking?.purchaseDate || '';
-    const paymentStatus = completingQuote && newBooking.paymentStatus === 'ABONADO'
-      ? 'PENDIENTE'
-      : newBooking.paymentStatus;
     const bookingData = {
       ...newBooking,
+      paymentMethod: completingQuote && !PAYMENT_METHODS.includes(newBooking.paymentMethod)
+        ? 'TRANSFERENCIA'
+        : newBooking.paymentMethod,
       purchaseDate,
       ...quoteData,
       totalValue,
-      paymentStatus,
-      paidAmount: paymentStatus === 'PAGADO' && !completingQuote
+      paymentStatus: newBooking.paymentStatus,
+      paidAmount: newBooking.paymentStatus === 'PAGADO' && !completingQuote
         ? totalValue
         : Math.min(Number(newBooking.paidAmount) || 0, totalValue)
     };
@@ -243,7 +245,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setCompletingQuote(false);
     setEditingQuote(false);
     resetForm();
-    setActiveView(completingQuote || paymentStatus === 'PAGADO' ? 'purchases' : 'quotes');
+    setActiveView(completingQuote || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes');
   };
 
   const searchedBookings = bookings.filter(b =>
