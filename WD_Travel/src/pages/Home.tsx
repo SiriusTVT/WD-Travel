@@ -1,6 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
 import type { Booking } from '../data/mockData';
+import {
+  getLocalDateString,
+  isValidContactPhone,
+  isValidDate,
+  isValidDocumentNumber,
+  isValidLocation,
+  isValidPersonName,
+  MAX_CHILD_AGE,
+  MAX_TRAVELERS,
+  normalizeDocumentNumber
+} from '../formValidation';
 
 declare global {
   interface Window {
@@ -177,12 +188,32 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     const normalizedAdultCount = Number(adultCount);
     const normalizedChildCount = Number(childCount);
     if (
+      !isValidPersonName(firstName) ||
+      !isValidPersonName(lastName) ||
+      !isValidDocumentNumber(documentNumber, documentType) ||
+      !isValidContactPhone(phone, phoneCountryCode) ||
+      !isValidLocation(origin) ||
+      !isValidLocation(destination) ||
+      origin === destination ||
+      !isValidDate(travelDate) ||
+      travelDate < getLocalDateString() ||
+      (tripType === 'ROUND_TRIP' && (
+        !isValidDate(returnDate) ||
+        returnDate < travelDate
+      ))
+    ) {
+      window.alert('Revisa nombres, documento, teléfono, ruta y fechas. Verifica que los datos tengan el formato indicado.');
+      return;
+    }
+    if (
       !Number.isInteger(normalizedAdultCount) ||
       !Number.isInteger(normalizedChildCount) ||
       normalizedAdultCount < 1 ||
       normalizedChildCount < 0 ||
-      normalizedAdultCount + normalizedChildCount > 20 ||
-      childAges.slice(0, normalizedChildCount).some(age => age === '')
+      normalizedAdultCount + normalizedChildCount > MAX_TRAVELERS ||
+      childAges.slice(0, normalizedChildCount).some(age =>
+        age === '' || !Number.isInteger(Number(age)) || Number(age) < 0 || Number(age) > MAX_CHILD_AGE
+      )
     ) {
       window.alert('Verifica la cantidad de adultos y niños, e indica la edad de cada niño.');
       return;
@@ -435,15 +466,18 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 <div className="traveler-fields-grid">
                   <div>
                     <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Nombres:</label>
-                    <input required type="text" placeholder="Ej.: María José" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej.: María José" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Apellidos:</label>
-                    <input required type="text" placeholder="Ej.: Pérez Gómez" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej.: Pérez Gómez" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de documento de identidad:</label>
-                    <select required value={documentType} onChange={e => setDocumentType(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
+                    <select required value={documentType} onChange={e => {
+                      setDocumentType(e.target.value);
+                      setDocumentNumber(current => normalizeDocumentNumber(current, e.target.value));
+                    }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
                       <option>Cédula de ciudadanía</option>
                       <option>Tarjeta de identidad</option>
                       <option>Registro civil</option>
@@ -453,7 +487,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Número de identidad:</label>
-                    <input required type="text" placeholder="Escribe el número de identidad" value={documentNumber} onChange={e => setDocumentNumber(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input required type="text" inputMode={documentType === 'Pasaporte' ? 'text' : 'numeric'} minLength={documentType === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={documentType === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={documentType === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} placeholder="Escribe el número de identidad" value={documentNumber} onChange={e => setDocumentNumber(normalizeDocumentNumber(e.target.value, documentType))} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
@@ -474,7 +508,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   </div>
                   <div>
                     <label htmlFor="whatsapp-number" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: '#4b5563' }}>Número de WhatsApp:</label>
-                    <input id="whatsapp-number" required type="tel" autoComplete="tel-national" placeholder="Ej.: 313 490 2197" value={phone} onChange={e => setPhone(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input id="whatsapp-number" required type="tel" inputMode="numeric" autoComplete="tel-national" minLength={phoneCountryCode === '+57' ? 10 : 7} maxLength={15} pattern={phoneCountryCode === '+57' ? '3[0-9]{9}' : '[0-9]{7,15}'} title={phoneCountryCode === '+57' ? 'Ingresa un celular colombiano de 10 dígitos que empiece por 3.' : 'Ingresa entre 7 y 15 dígitos.'} placeholder="Ej.: 3134902197" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
@@ -509,11 +543,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               <div style={{ display: 'grid', gridTemplateColumns: tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '20px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Ida:</label>
-                  <input required type="date" value={travelDate} onChange={e => setTravelDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  <input required type="date" min={getLocalDateString()} value={travelDate} onChange={e => setTravelDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
                 {tripType === 'ROUND_TRIP' && <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Regreso:</label>
-                  <input required type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  <input required type="date" min={travelDate || getLocalDateString()} value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>}
               </div>
 
@@ -522,11 +556,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 <div className="travel-count-grid">
                   <div>
                     <label htmlFor="adult-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Adultos:</label>
-                    <input id="adult-count" required type="number" min="1" max={20 - childCountValue} value={adultCount} onChange={e => handleTravelerCountChange('adults', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input id="adult-count" required type="number" min="1" max={MAX_TRAVELERS - childCountValue} step="1" value={adultCount} onChange={e => handleTravelerCountChange('adults', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
                     <label htmlFor="child-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Niños:</label>
-                    <input id="child-count" required type="number" min="0" max={20 - (Number(adultCount) || 1)} value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                    <input id="child-count" required type="number" min="0" max={MAX_TRAVELERS - (Number(adultCount) || 1)} step="1" value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
@@ -543,6 +577,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                           required
                           type="number"
                           min="0"
+                          max={MAX_CHILD_AGE}
+                          step="1"
                           value={age}
                           onChange={e => setChildAges(currentAges => currentAges.map((currentAge, ageIndex) => ageIndex === index ? e.target.value : currentAge))}
                           style={{ width: '100%', padding: '10px', borderRadius: '8px' }}

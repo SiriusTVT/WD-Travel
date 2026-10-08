@@ -2,6 +2,19 @@ import React, { useState } from 'react';
 import { type Booking, type Passenger } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { formatDisplayDate } from '../formatDate';
+import {
+  getLocalDateString,
+  isValidColombianPhone,
+  isValidDate,
+  isValidDocumentNumber,
+  isValidLocation,
+  isValidPersonName,
+  MAX_BOOKING_AMOUNT,
+  MAX_CHILD_AGE,
+  MAX_TRAVELERS,
+  normalizeDocumentNumber,
+  normalizePhoneNumber
+} from '../formValidation';
 
 const getNameParts = (firstName = '', lastName = '', fullName = '') => {
   if (firstName || lastName) return { firstName, lastName };
@@ -110,7 +123,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       quoteDate: booking.quoteDate || booking.purchaseDate,
       purchaseDate: booking.purchaseDate,
       ...primaryName,
-      phone: booking.phone,
+      phone: normalizePhoneNumber(booking.phone),
       cedula: booking.cedula,
       documentType: booking.documentType || 'Cédula de ciudadanía',
       bookingCode: booking.bookingCode,
@@ -165,32 +178,83 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (editingBookingId) {
-      const adultCount = Number(newBooking.adultCount);
-      const childCount = Number(newBooking.childCount);
-      if (
-        newBooking.adultCount === '' ||
-        newBooking.childCount === '' ||
-        !Number.isInteger(adultCount) ||
-        !Number.isInteger(childCount) ||
-        adultCount < 1 ||
-        childCount < 0 ||
-        adultCount + childCount > 20 ||
-        newBooking.childAges.length !== childCount ||
-        newBooking.childAges.some(age => age === '' || !Number.isInteger(Number(age)) || Number(age) < 0)
-      ) {
-        window.alert('Verifica la cantidad de adultos y niños, e indica la edad de cada niño.');
-        return;
-      }
+    const adultCount = Number(newBooking.adultCount);
+    const childCount = Number(newBooking.childCount);
+    const hasInvalidPassengerCounts =
+      newBooking.adultCount === '' ||
+      newBooking.childCount === '' ||
+      !Number.isInteger(adultCount) ||
+      !Number.isInteger(childCount) ||
+      adultCount < 1 ||
+      childCount < 0 ||
+      adultCount + childCount > MAX_TRAVELERS ||
+      newBooking.childAges.length !== childCount ||
+      newBooking.childAges.some(age =>
+        age === '' || !Number.isInteger(Number(age)) || Number(age) < 0 || Number(age) > MAX_CHILD_AGE
+      );
+    const hasInvalidRoute =
+      !isValidLocation(origin) ||
+      !isValidLocation(destination) ||
+      origin === destination ||
+      (hasLayover && (
+        layovers.some(layover => !isValidLocation(layover)) ||
+        layovers.some(layover => layover === origin || layover === destination)
+      ));
+    const hasInvalidDates =
+      !isValidDate(newBooking.travelDate) ||
+      (!editingBookingId && newBooking.travelDate < getLocalDateString()) ||
+      (newBooking.tripType === 'ROUND_TRIP' && (
+        !isValidDate(newBooking.returnDate) ||
+        newBooking.returnDate < newBooking.travelDate
+      ));
+
+    if (hasInvalidRoute || hasInvalidDates || hasInvalidPassengerCounts) {
+      window.alert('Verifica la ruta, las fechas y la cantidad de viajeros. Cada niño debe tener una edad entre 0 y 17 años.');
+      return;
     }
 
-    if (completingQuote && (!newBooking.bookingCode.trim() || !newBooking.airline.trim() || Number(newBooking.totalValue) <= 0)) {
+    if (!editingQuote && (
+      !isValidPersonName(newBooking.firstName) ||
+      !isValidPersonName(newBooking.lastName) ||
+      !isValidDocumentNumber(newBooking.cedula, newBooking.documentType) ||
+      !isValidColombianPhone(newBooking.phone) ||
+      additionalPassengers.some(passenger =>
+        !isValidPersonName(passenger.firstName ?? '') ||
+        !isValidPersonName(passenger.lastName ?? '') ||
+        !isValidDocumentNumber(passenger.cedula, passenger.documentType || 'Cédula de ciudadanía')
+      )
+    )) {
+      window.alert('Verifica nombres, documentos y celular. El celular debe tener 10 dígitos colombianos y los documentos deben respetar su formato.');
+      return;
+    }
+
+    const totalValue = Number(newBooking.totalValue);
+    const paidAmount = Number(newBooking.paidAmount);
+    if (!editingQuote && (
+      !Number.isFinite(totalValue) ||
+      totalValue < 0 ||
+      totalValue > MAX_BOOKING_AMOUNT ||
+      !Number.isFinite(paidAmount) ||
+      paidAmount < 0 ||
+      paidAmount > totalValue ||
+      (newBooking.paymentStatus === 'ABONADO' && (paidAmount <= 0 || paidAmount >= totalValue))
+    )) {
+      window.alert('El valor total debe estar entre $0 y $1.000.000.000. El abono debe ser mayor que cero y menor que el total.');
+      return;
+    }
+
+    if (completingQuote && (
+      !newBooking.bookingCode.trim() ||
+      newBooking.bookingCode.trim().length > 30 ||
+      !newBooking.airline.trim() ||
+      newBooking.airline.trim().length > 80 ||
+      totalValue <= 0
+    )) {
       window.alert('Completa el código de reserva, la aerolínea y un precio mayor que cero para registrar la compra.');
       return;
     }
 
     const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
-    const totalValue = Number(newBooking.totalValue);
     const firstName = newBooking.firstName.trim();
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
@@ -541,15 +605,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombres:</label>
-                  <input required type="text" placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Apellidos:</label>
-                  <input required type="text" placeholder="Ej: Pérez Gómez" value={newBooking.lastName} onChange={e => setNewBooking({...newBooking, lastName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: Pérez Gómez" value={newBooking.lastName} onChange={e => setNewBooking({...newBooking, lastName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de documento:</label>
-                  <select required value={newBooking.documentType} onChange={e => setNewBooking({ ...newBooking, documentType: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                  <select required value={newBooking.documentType} onChange={e => setNewBooking(current => ({
+                    ...current,
+                    documentType: e.target.value,
+                    cedula: normalizeDocumentNumber(current.cedula, e.target.value)
+                  }))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
                     <option>Cédula de ciudadanía</option>
                     <option>Tarjeta de identidad</option>
                     <option>Registro civil</option>
@@ -559,11 +627,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Número de identidad:</label>
-                  <input required type="text" value={newBooking.cedula} onChange={e => setNewBooking({...newBooking, cedula: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="text" inputMode={newBooking.documentType === 'Pasaporte' ? 'text' : 'numeric'} minLength={newBooking.documentType === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={newBooking.documentType === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={newBooking.documentType === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} value={newBooking.cedula} onChange={e => setNewBooking({...newBooking, cedula: normalizeDocumentNumber(e.target.value, newBooking.documentType)})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Celular:</label>
-                  <input required type="text" value={newBooking.phone} onChange={e => setNewBooking({...newBooking, phone: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="tel" inputMode="numeric" minLength={10} maxLength={10} pattern="3[0-9]{9}" title="Ingresa un celular colombiano de 10 dígitos que empiece por 3." value={newBooking.phone} onChange={e => setNewBooking({...newBooking, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
               </div>}
 
@@ -590,16 +658,20 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 <div key={index} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <strong style={{ display: 'block', marginBottom: '8px' }}>Pasajero {index + 2}</strong>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <input required type="text" placeholder="Nombres" value={passenger.firstName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                    <input required type="text" placeholder="Apellidos" value={passenger.lastName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                    <select required value={passenger.documentType || 'Cédula de ciudadanía'} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, documentType: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                    <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Nombres" value={passenger.firstName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Apellidos" value={passenger.lastName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <select required value={passenger.documentType || 'Cédula de ciudadanía'} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? {
+                      ...item,
+                      documentType: e.target.value,
+                      cedula: normalizeDocumentNumber(item.cedula, e.target.value)
+                    } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
                       <option>Cédula de ciudadanía</option>
                       <option>Tarjeta de identidad</option>
                       <option>Registro civil</option>
                       <option>Cédula de extranjería</option>
                       <option>Pasaporte</option>
                     </select>
-                    <input required type="text" placeholder="Número de identidad" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                    <input required type="text" inputMode={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? 'text' : 'numeric'} minLength={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} placeholder="Número de identidad" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: normalizeDocumentNumber(e.target.value, item.documentType || 'Cédula de ciudadanía') } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                   </div>
                 </div>
               ))}
@@ -615,7 +687,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                         required
                         type="number"
                         min="1"
-                        max={20 - (Number(newBooking.childCount) || 0)}
+                        max={MAX_TRAVELERS - (Number(newBooking.childCount) || 0)}
+                        step="1"
                         value={newBooking.adultCount}
                         onChange={e => setNewBooking(current => ({
                           ...current,
@@ -631,7 +704,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                         required
                         type="number"
                         min="0"
-                        max={20 - (Number(newBooking.adultCount) || 1)}
+                        max={MAX_TRAVELERS - (Number(newBooking.adultCount) || 1)}
+                        step="1"
                         value={newBooking.childCount}
                         onChange={e => {
                           const value = e.target.value;
@@ -665,6 +739,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                             required
                             type="number"
                             min="0"
+                            max={MAX_CHILD_AGE}
+                            step="1"
                             value={age}
                             onChange={e => {
                               const childAge = e.target.value === '' ? '' : Number(e.target.value);
@@ -773,11 +849,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Código Reserva:</label>
-                  <input required={completingQuote} type="text" placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required={completingQuote} type="text" maxLength={30} placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Aerolínea:</label>
-                  <input required={completingQuote} type="text" placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required={completingQuote} type="text" maxLength={80} placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
               </div>}
 
@@ -804,11 +880,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               <div style={{ display: 'grid', gridTemplateColumns: newBooking.tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Viaje:</label>
-                  <input required type="date" value={newBooking.travelDate} onChange={e => setNewBooking({...newBooking, travelDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="date" min={!editingBookingId ? getLocalDateString() : undefined} value={newBooking.travelDate} onChange={e => setNewBooking({...newBooking, travelDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 {newBooking.tripType === 'ROUND_TRIP' && <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Regreso:</label>
-                  <input required type="date" value={newBooking.returnDate} onChange={e => setNewBooking({...newBooking, returnDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="date" min={newBooking.travelDate || (!editingBookingId ? getLocalDateString() : undefined)} value={newBooking.returnDate} onChange={e => setNewBooking({...newBooking, returnDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>}
               </div>
 
@@ -826,7 +902,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Valor Total (COP):</label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
                     <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
-                    <input type="text" inputMode="numeric" required value={formatAmountInput(newBooking.totalValue)} onChange={e => {
+                    <input type="text" inputMode="numeric" maxLength={13} required value={formatAmountInput(newBooking.totalValue)} onChange={e => {
                     const totalValue = parseAmountInput(e.target.value);
                     const numericTotalValue = Number(totalValue) || 0;
                     setNewBooking({ ...newBooking, totalValue, paidAmount: newBooking.paymentStatus === 'PAGADO' ? numericTotalValue : Math.min(Number(newBooking.paidAmount) || 0, numericTotalValue) });
@@ -858,6 +934,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     <input
                       type="text"
                       inputMode="numeric"
+                      maxLength={13}
                       required
                       value={formatAmountInput(newBooking.paidAmount)}
                       onChange={e => {
