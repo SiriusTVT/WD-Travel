@@ -372,7 +372,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         <div className="presentation-video">
           <blockquote
             className="instagram-media"
-            data-instgrm-captioned
             data-instgrm-permalink="https://www.instagram.com/reel/DVyuF5YDrwq/?utm_source=ig_embed&utm_campaign=loading"
             data-instgrm-version="14"
           >
