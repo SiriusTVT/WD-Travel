@@ -93,6 +93,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [phoneCountryCode, setPhoneCountryCode] = useState('+57');
   const [travelDate, setTravelDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
+  const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ROUND_TRIP');
   const [bookingType, setBookingType] = useState<BookingType>('TIQUETE');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -208,7 +209,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       route: `${origin} ➔ ${destination}`,
       bookingCode: 'PENDIENTE',
       travelDate,
-      returnDate,
+      returnDate: tripType === 'ROUND_TRIP' ? returnDate : '',
+      tripType,
       adultCount: normalizedAdultCount,
       childCount: normalizedChildCount,
       childAges: childAges.slice(0, normalizedChildCount).map(Number),
@@ -472,15 +474,32 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <label htmlFor="trip-type" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de viaje:</label>
+                <select
+                  id="trip-type"
+                  value={tripType}
+                  onChange={e => {
+                    const nextTripType = e.target.value as 'ONE_WAY' | 'ROUND_TRIP';
+                    setTripType(nextTripType);
+                    if (nextTripType === 'ONE_WAY') setReturnDate('');
+                  }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                >
+                  <option value="ROUND_TRIP">Ida y vuelta</option>
+                  <option value="ONE_WAY">Solo ida</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '20px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Ida:</label>
                   <input required type="date" value={travelDate} onChange={e => setTravelDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
-                <div>
+                {tripType === 'ROUND_TRIP' && <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Regreso:</label>
                   <input required type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
-                </div>
+                </div>}
               </div>
 
               <div>

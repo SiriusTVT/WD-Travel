@@ -20,6 +20,7 @@ export interface Booking {
   bookingCode: string;
   travelDate: string;
   returnDate: string;
+  tripType?: 'ONE_WAY' | 'ROUND_TRIP';
   adultCount?: number;
   childCount?: number;
   childAges?: number[];

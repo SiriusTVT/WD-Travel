@@ -46,6 +46,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     bookingCode: '',
     travelDate: '',
     returnDate: '',
+    tripType: 'ROUND_TRIP' as 'ONE_WAY' | 'ROUND_TRIP',
     adultCount: 1 as number | '',
     childCount: 0 as number | '',
     childAges: [] as (number | '')[],
@@ -75,6 +76,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       bookingCode: '',
       travelDate: '',
       returnDate: '',
+      tripType: 'ROUND_TRIP',
       adultCount: 1,
       childCount: 0,
       childAges: [],
@@ -114,6 +116,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       bookingCode: booking.bookingCode,
       travelDate: booking.travelDate,
       returnDate: booking.returnDate,
+      tripType: booking.tripType ?? (booking.returnDate ? 'ROUND_TRIP' : 'ONE_WAY'),
       adultCount: booking.adultCount ?? 1,
       childCount: booking.childCount ?? 0,
       childAges: Array.from(
@@ -221,7 +224,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       documentType: newBooking.documentType,
       route: finalRoute,
       travelDate: newBooking.travelDate,
-      returnDate: newBooking.returnDate,
+      returnDate: newBooking.tripType === 'ROUND_TRIP' ? newBooking.returnDate : '',
+      tripType: newBooking.tripType,
       adultCount: Number(newBooking.adultCount),
       childCount: Number(newBooking.childCount),
       childAges: newBooking.childAges.map(Number),
@@ -364,6 +368,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               <th style={{ padding: '14px' }}>PASAJERO</th>
               <th style={{ padding: '14px' }}>CELULAR</th>
               <th style={{ padding: '14px' }}>RUTA</th>
+              <th style={{ padding: '14px' }}>TIPO DE VIAJE</th>
               <th style={{ padding: '14px' }}>FECHA VIAJE</th>
               <th style={{ padding: '14px' }}>FECHA REGRESO</th>
               <th style={{ padding: '14px' }}>TIPO</th>
@@ -385,7 +390,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           <tbody>
             {filteredBookings.length === 0 ? (
               <tr>
-                <td colSpan={activeView === 'quotes' ? 9 : 16} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={activeView === 'quotes' ? 10 : 17} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
                   {activeView === 'quotes' ? 'No hay cotizaciones pendientes.' : 'Todavía no hay compras registradas.'}
                 </td>
               </tr>
@@ -417,8 +422,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </td>
                 <td style={{ padding: '14px' }}>{b.phone}</td>
                 <td style={{ padding: '14px' }}>{b.route}</td>
+                <td style={{ padding: '14px' }}>{(b.tripType ?? (b.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'IDA Y VUELTA' : 'SOLO IDA'}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
-                <td style={{ padding: '14px' }}>{formatDisplayDate(b.returnDate)}</td>
+                <td style={{ padding: '14px' }}>{b.returnDate ? formatDisplayDate(b.returnDate) : '—'}</td>
                 <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
                 <td style={{ padding: '14px' }}>
                   {b.adultCount ?? 'Sin dato'} adulto(s), {b.childCount ?? 'Sin dato'} niño(s)
@@ -482,6 +488,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>👤 Perfil del Cliente</h3>
             <p style={{ marginTop: '15px' }}><strong>Nombre:</strong> {selectedPassenger.passenger}</p>
             <p><strong>{selectedPassenger.documentType || 'Número de identidad'}:</strong> {selectedPassenger.cedula || 'No registrado'}</p>
+            <p><strong>Tipo de viaje:</strong> {(selectedPassenger.tripType ?? (selectedPassenger.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'}</p>
+            <p><strong>Fecha de ida:</strong> {formatDisplayDate(selectedPassenger.travelDate)}</p>
+            {selectedPassenger.returnDate && <p><strong>Fecha de regreso:</strong> {formatDisplayDate(selectedPassenger.returnDate)}</p>}
             <p><strong>Viajeros:</strong> {selectedPassenger.adultCount ?? 'Sin dato'} adulto(s), {selectedPassenger.childCount ?? 'Sin dato'} niño(s)</p>
             {(selectedPassenger.childAges?.length ?? 0) > 0 && (
               <p><strong>Edades de los niños:</strong> {selectedPassenger.childAges?.map(age => `${age} años`).join(', ')}</p>
@@ -772,15 +781,35 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
               </div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label htmlFor="admin-trip-type" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de viaje:</label>
+                <select
+                  id="admin-trip-type"
+                  value={newBooking.tripType}
+                  onChange={e => {
+                    const tripType = e.target.value as 'ONE_WAY' | 'ROUND_TRIP';
+                    setNewBooking(current => ({
+                      ...current,
+                      tripType,
+                      returnDate: tripType === 'ONE_WAY' ? '' : current.returnDate
+                    }));
+                  }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                >
+                  <option value="ROUND_TRIP">Ida y vuelta</option>
+                  <option value="ONE_WAY">Solo ida</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: newBooking.tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Viaje:</label>
-                  <input type="date" value={newBooking.travelDate} onChange={e => setNewBooking({...newBooking, travelDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="date" value={newBooking.travelDate} onChange={e => setNewBooking({...newBooking, travelDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
-                <div>
+                {newBooking.tripType === 'ROUND_TRIP' && <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Regreso:</label>
-                  <input type="date" value={newBooking.returnDate} onChange={e => setNewBooking({...newBooking, returnDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                </div>
+                  <input required type="date" value={newBooking.returnDate} onChange={e => setNewBooking({...newBooking, returnDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                </div>}
               </div>
 
               {!editingQuote && <div>
