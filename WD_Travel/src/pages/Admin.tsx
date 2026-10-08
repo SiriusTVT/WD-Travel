@@ -46,8 +46,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     bookingCode: '',
     travelDate: '',
     returnDate: '',
-    adultCount: 1 as number | undefined,
-    childCount: 0 as number | undefined,
+    adultCount: 1 as number | '',
+    childCount: 0 as number | '',
     childAges: [] as (number | '')[],
     isTicket: false,
     isPackage: true,
@@ -166,6 +166,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       const adultCount = Number(newBooking.adultCount);
       const childCount = Number(newBooking.childCount);
       if (
+        newBooking.adultCount === '' ||
+        newBooking.childCount === '' ||
         !Number.isInteger(adultCount) ||
         !Number.isInteger(childCount) ||
         adultCount < 1 ||
@@ -220,8 +222,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       route: finalRoute,
       travelDate: newBooking.travelDate,
       returnDate: newBooking.returnDate,
-      adultCount: newBooking.adultCount,
-      childCount: newBooking.childCount,
+      adultCount: Number(newBooking.adultCount),
+      childCount: Number(newBooking.childCount),
       childAges: newBooking.childAges.map(Number),
       isTicket: newBooking.isTicket,
       isPackage: newBooking.isPackage,
@@ -604,9 +606,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                         required
                         type="number"
                         min="1"
-                        max={20 - (newBooking.childCount ?? 0)}
-                        value={newBooking.adultCount ?? 1}
-                        onChange={e => setNewBooking(current => ({ ...current, adultCount: Number(e.target.value) }))}
+                        max={20 - (Number(newBooking.childCount) || 0)}
+                        value={newBooking.adultCount}
+                        onChange={e => setNewBooking(current => ({
+                          ...current,
+                          adultCount: e.target.value === '' ? '' : Number(e.target.value)
+                        }))}
                         style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
                       />
                     </div>
@@ -617,24 +622,31 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                         required
                         type="number"
                         min="0"
-                        max={20 - (newBooking.adultCount ?? 1)}
-                        value={newBooking.childCount ?? 0}
+                        max={20 - (Number(newBooking.adultCount) || 1)}
+                        value={newBooking.childCount}
                         onChange={e => {
-                          const childCount = Number(e.target.value) || 0;
+                          const value = e.target.value;
+                          if (value === '') {
+                            setNewBooking(current => ({ ...current, childCount: '' }));
+                            return;
+                          }
+                          const childCount = Number(value);
                           setNewBooking(current => ({
                             ...current,
                             childCount,
-                            childAges: Array.from(
-                              { length: childCount },
-                              (_, index) => current.childAges[index] ?? ''
-                            )
+                            childAges: Number.isInteger(childCount) && childCount >= 0
+                              ? Array.from(
+                                { length: childCount },
+                                (_, index) => current.childAges[index] ?? ''
+                              )
+                              : current.childAges
                           }));
                         }}
                         style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
                       />
                     </div>
                   </div>
-                  {(newBooking.childCount ?? 0) > 0 && (
+                  {Number(newBooking.childCount) > 0 && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       {newBooking.childAges.map((age, index) => (
                         <div key={index}>
