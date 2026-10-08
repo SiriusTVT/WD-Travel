@@ -618,8 +618,14 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <a className="whatsapp-button" href="https://wa.me/573332688678" target="_blank" rel="noreferrer">
             Hablar con un asesor por WhatsApp
           </a>
-          <a className="instagram-button" href="https://www.instagram.com/w.d.travel3/" target="_blank" rel="noreferrer">
+          <a className="social-button instagram-button" href="https://www.instagram.com/w.d.travel3/" target="_blank" rel="noreferrer">
             Síguenos en Instagram @w.d.travel3
+          </a>
+          <a className="social-button tiktok-button" href="https://www.tiktok.com/@wdtravel6?_r=1&_t=ZS-94le7Y8Db3i" target="_blank" rel="noreferrer">
+            Síguenos en TikTok @wdtravel6
+          </a>
+          <a className="social-button facebook-button" href="https://www.facebook.com/people/WDTravel/61574445834395/" target="_blank" rel="noreferrer">
+            Síguenos en Facebook WD Travel
           </a>
         </div>
       </section>

@@ -533,9 +533,22 @@ h3 {
   background: #35d06f;
 }
 
-.instagram-button {
+.social-button {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.social-button:hover,
+.social-button:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tiktok-button {
+  background: #111827;
+}
+
+.facebook-button {
+  background: #1877f2;
 }
 
 .traveler-fields-grid {
