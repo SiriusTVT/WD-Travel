@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { type Booking, type Passenger } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
+import { CallingCodeSelector } from '../components/CallingCodeSelector';
+import { isValidCallingCode } from '../data/callingCodes';
 import { formatDisplayDate } from '../formatDate';
 import {
   clampIntegerInput,
   getLocalDateString,
-  isValidColombianPhone,
+  isValidContactPhone,
   isValidDate,
   isValidDocumentNumber,
   isValidLocation,
@@ -18,12 +20,25 @@ import {
 } from '../formValidation';
 
 const getNameParts = (firstName = '', lastName = '', fullName = '') => {
-  if (firstName || lastName) return { firstName, lastName };
   const [legacyFirstName = '', ...legacyLastName] = fullName.trim().split(/\s+/);
-  return { firstName: legacyFirstName, lastName: legacyLastName.join(' ') };
+  return {
+    firstName: firstName || legacyFirstName,
+    lastName: lastName || legacyLastName.join(' ')
+  };
 };
 
 const joinName = (firstName: string, lastName: string) => `${firstName.trim()} ${lastName.trim()}`.trim();
+const getPhoneParts = (phone: string) => {
+  const match = phone.trim().match(/^(\+\d+)\s*(.*)$/);
+  if (match && isValidCallingCode(match[1])) {
+    return { phoneCountryCode: match[1], phone: normalizePhoneNumber(match[2]) };
+  }
+  return { phoneCountryCode: '+57', phone: normalizePhoneNumber(phone) };
+};
+const formatPhoneForDisplay = (phone: string) =>
+  phone.trim()
+    ? /^\+\d+/.test(phone.trim()) ? phone.trim() : `+57 ${phone.trim()}`
+    : 'No registrado';
 const PAYMENT_METHODS = ['TRANSFERENCIA', 'EFECTIVO', 'TARJETA'];
 
 interface AdminProps {
@@ -54,6 +69,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     purchaseDate: '',
     firstName: '',
     lastName: '',
+    phoneCountryCode: '+57',
     phone: '',
     cedula: '',
     documentType: 'Cédula de ciudadanía',
@@ -84,6 +100,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       purchaseDate: '',
       firstName: '',
       lastName: '',
+      phoneCountryCode: '+57',
       phone: '',
       cedula: '',
       documentType: 'Cédula de ciudadanía',
@@ -115,7 +132,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     const passengerList = booking.passengers?.length
       ? booking.passengers
       : [{ name: booking.passenger, cedula: booking.cedula }];
-    const primaryName = getNameParts(booking.firstName, booking.lastName, booking.passenger);
+    const primaryName = getNameParts(
+      booking.firstName || booking.passengers?.[0]?.firstName,
+      booking.lastName || booking.passengers?.[0]?.lastName,
+      booking.passenger || booking.passengers?.[0]?.name
+    );
+    const phoneParts = getPhoneParts(booking.phone);
     setAdditionalPassengers(passengerList.slice(1).map(passenger => ({
       ...passenger,
       ...getNameParts(passenger.firstName, passenger.lastName, passenger.name)
@@ -124,7 +146,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       quoteDate: booking.quoteDate || booking.purchaseDate,
       purchaseDate: booking.purchaseDate,
       ...primaryName,
-      phone: normalizePhoneNumber(booking.phone),
+      ...phoneParts,
       cedula: booking.cedula,
       documentType: booking.documentType || 'Cédula de ciudadanía',
       bookingCode: booking.bookingCode,
@@ -215,17 +237,23 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     }
 
     if (!editingQuote && (
-      !isValidPersonName(newBooking.firstName) ||
-      !isValidPersonName(newBooking.lastName) ||
-      !isValidDocumentNumber(newBooking.cedula, newBooking.documentType) ||
-      !isValidColombianPhone(newBooking.phone) ||
       additionalPassengers.some(passenger =>
         !isValidPersonName(passenger.firstName ?? '') ||
         !isValidPersonName(passenger.lastName ?? '') ||
         !isValidDocumentNumber(passenger.cedula, passenger.documentType || 'Cédula de ciudadanía')
       )
     )) {
-      window.alert('Verifica nombres, documentos y celular. El celular debe tener 10 dígitos colombianos y los documentos deben respetar su formato.');
+      window.alert('Verifica los documentos de los pasajeros adicionales.');
+      return;
+    }
+
+    if (
+      !isValidPersonName(newBooking.firstName) ||
+      !isValidPersonName(newBooking.lastName) ||
+      !isValidDocumentNumber(newBooking.cedula, newBooking.documentType) ||
+      !isValidContactPhone(newBooking.phone, newBooking.phoneCountryCode)
+    ) {
+      window.alert('Verifica nombres, apellidos, documento e indicativo/número telefónico.');
       return;
     }
 
@@ -284,7 +312,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       firstName,
       lastName,
       passenger: passengerName,
-      phone: newBooking.phone,
+      phone: `${newBooking.phoneCountryCode} ${newBooking.phone.trim()}`,
       cedula: newBooking.cedula,
       documentType: newBooking.documentType,
       route: finalRoute,
@@ -296,7 +324,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       childAges: newBooking.childAges.map(Number),
       isTicket: newBooking.isTicket,
       isPackage: newBooking.isPackage,
-      passengers: editingBookingId && existingBooking ? existingBooking.passengers : passengers
+      passengers: editingBookingId && existingBooking?.passengers.length
+        ? [passengers[0], ...existingBooking.passengers.slice(1)]
+        : passengers
     };
 
     if (editingQuote && editingBookingId) {
@@ -485,8 +515,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     </details>
                   )}
                 </td>
-                <td style={{ padding: '14px' }}>{b.phone}</td>
-                <td style={{ padding: '14px' }}>{b.route}</td>
+                <td style={{ padding: '14px' }}>{formatPhoneForDisplay(b.phone)}</td>
+                <td style={{ padding: '14px', minWidth: '210px', lineHeight: 1.6 }}>
+                  {b.route.split(' ➔ ').map((stop, index, stops) => (
+                    <div key={`${b.id}-route-${index}`}>
+                      {stop}{index < stops.length - 1 ? ' ➔' : ''}
+                    </div>
+                  ))}
+                </td>
                 <td style={{ padding: '14px' }}>{(b.tripType ?? (b.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'IDA Y VUELTA' : 'SOLO IDA'}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
                 <td style={{ padding: '14px' }}>{b.returnDate ? formatDisplayDate(b.returnDate) : '—'}</td>
@@ -570,7 +606,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 ))}
               </div>
             )}
-            <p><strong>Celular / WhatsApp:</strong> {selectedPassenger.phone}</p>
+            <p><strong>Celular / WhatsApp:</strong> {formatPhoneForDisplay(selectedPassenger.phone)}</p>
             <p><strong>Ruta:</strong> {selectedPassenger.route}</p>
             <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
             <p><strong>Aerolínea:</strong> {selectedPassenger.airline}</p>
@@ -603,7 +639,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             )}
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombres:</label>
                   <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
@@ -631,10 +667,30 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   <input required type="text" inputMode={newBooking.documentType === 'Pasaporte' ? 'text' : 'numeric'} minLength={newBooking.documentType === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={newBooking.documentType === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={newBooking.documentType === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} value={newBooking.cedula} onChange={e => setNewBooking({...newBooking, cedula: normalizeDocumentNumber(e.target.value, newBooking.documentType)})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Celular:</label>
-                  <input required type="tel" inputMode="numeric" minLength={10} maxLength={10} pattern="3[0-9]{9}" title="Ingresa un celular colombiano de 10 dígitos que empiece por 3." value={newBooking.phone} onChange={e => setNewBooking({...newBooking, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <label htmlFor="admin-phone-country-code" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Número indicativo:</label>
+                  <CallingCodeSelector
+                    id="admin-phone-country-code"
+                    value={newBooking.phoneCountryCode}
+                    onChange={phoneCountryCode => setNewBooking(current => ({ ...current, phoneCountryCode }))}
+                  />
                 </div>
-              </div>}
+                <div>
+                  <label htmlFor="admin-phone" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Celular / WhatsApp:</label>
+                  <input
+                    id="admin-phone"
+                    required
+                    type="tel"
+                    inputMode="numeric"
+                    minLength={newBooking.phoneCountryCode === '+57' ? 10 : 7}
+                    maxLength={15}
+                    pattern={newBooking.phoneCountryCode === '+57' ? '3[0-9]{9}' : '[0-9]{7,15}'}
+                    title={newBooking.phoneCountryCode === '+57' ? 'Ingresa un celular colombiano de 10 dígitos que empiece por 3.' : 'Ingresa entre 7 y 15 dígitos.'}
+                    value={newBooking.phone}
+                    onChange={e => setNewBooking(current => ({ ...current, phone: e.target.value.replace(/\D/g, '').slice(0, 15) }))}
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                  />
+                </div>
+              </div>
 
               {!editingBookingId && <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad de pasajeros:</label>
