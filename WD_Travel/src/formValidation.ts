@@ -1,4 +1,5 @@
 import { COUNTRIES_AND_CITIES } from './data/locations';
+import { isValidCallingCode } from './data/callingCodes';
 
 export const MAX_TRAVELERS = 20;
 export const MAX_CHILD_AGE = 17;
@@ -32,9 +33,9 @@ export const isValidColombianPhone = (value: string) => /^3\d{9}$/.test(normaliz
 
 export const isValidContactPhone = (value: string, countryCode: string) => {
   const digits = value.replace(/\D/g, '');
-  return countryCode === '+57'
+  return isValidCallingCode(countryCode) && (countryCode === '+57'
     ? /^3\d{9}$/.test(digits)
-    : /^\d{7,15}$/.test(digits);
+    : /^\d{7,15}$/.test(digits));
 };
 
 export const isValidLocation = (value: string) => {

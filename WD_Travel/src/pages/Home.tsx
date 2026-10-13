@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
+import { CallingCodeSelector } from '../components/CallingCodeSelector.tsx';
 import type { Booking } from '../data/mockData';
 import {
   getLocalDateString,
@@ -494,14 +495,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 <div className="contact-grid">
                   <div>
                     <label htmlFor="phone-country-code" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: '#4b5563' }}>Número indicativo:</label>
-                    <select id="phone-country-code" required value={phoneCountryCode} onChange={e => setPhoneCountryCode(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
-                      <option value="+57">Colombia (+57)</option>
-                      <option value="+51">Perú (+51)</option>
-                      <option value="+593">Ecuador (+593)</option>
-                      <option value="+58">Venezuela (+58)</option>
-                      <option value="+1">Estados Unidos (+1)</option>
-                      <option value="+34">España (+34)</option>
-                    </select>
+                    <CallingCodeSelector id="phone-country-code" value={phoneCountryCode} onChange={setPhoneCountryCode} />
                   </div>
                   <div>
                     <label htmlFor="whatsapp-number" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: '#4b5563' }}>Número de WhatsApp:</label>

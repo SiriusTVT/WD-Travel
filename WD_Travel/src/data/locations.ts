@@ -15,7 +15,10 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
       "San Andrés (ADZ)",
       "Barranquilla (BAQ)",
       "Pereira (PEI)",
-      "Bucaramanga (BGA)"
+      "Bucaramanga (BGA)",
+      "Armenia (AXM)",
+      "Manizales (MZL)",
+      "Leticia (LET)"
     ]
   },
   {
@@ -26,7 +29,11 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
       "Valencia (VLC)",
       "Sevilla (SVQ)",
       "Gran Canaria (LPA)",
-      "Málaga (AGP)"
+      "Málaga (AGP)",
+      "Alicante (ALC)",
+      "Bilbao (BIO)",
+      "Ibiza (IBZ)",
+      "Tenerife (TFS)"
     ]
   },
   {
@@ -34,7 +41,9 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
     cities: [
       "Varsovia (WAW)",
       "Cracovia (KRK)",
-      "Gdansk (GDN)"
+      "Gdansk (GDN)",
+      "Wroclaw (WRO)",
+      "Poznan (POZ)"
     ]
   },
   {
@@ -45,7 +54,12 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
       "Nueva York (JFK)",
       "Los Ángeles (LAX)",
       "Houston (IAH)",
-      "Atlanta (ATL)"
+      "Atlanta (ATL)",
+      "Chicago (ORD)",
+      "San Francisco (SFO)",
+      "Las Vegas (LAS)",
+      "Boston (BOS)",
+      "Washington D. C. (IAD)"
     ]
   },
   {
@@ -55,14 +69,18 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
       "Ciudad de México (MEX)",
       "Guadalajara (GDL)",
       "Monterrey (MTY)",
-      "Playa del Carmen"
+      "Playa del Carmen",
+      "Oaxaca (OAX)",
+      "Los Cabos (SJD)",
+      "Puerto Vallarta (PVR)"
     ]
   },
   {
     country: "República Dominicana",
     cities: [
       "Punta Cana (PUJ)",
-      "Santo Domingo (SDQ)"
+      "Santo Domingo (SDQ)",
+      "Puerto Plata (POP)"
     ]
   },
   {
@@ -70,7 +88,8 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
     cities: [
       "Lima (LIM)",
       "Cusco (CUZ)",
-      "Arequipa (AQP)"
+      "Arequipa (AQP)",
+      "Iquitos (IQT)"
     ]
   },
   {
@@ -78,7 +97,9 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
     cities: [
       "Buenos Aires (EZE)",
       "Mendoza (MDZ)",
-      "Bariloche (BRC)"
+      "Bariloche (BRC)",
+      "Córdoba (COR)",
+      "Salta (SLA)"
     ]
   },
   {
@@ -87,20 +108,216 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
       "Santiago (SCL)",
       "Calama (CJC)",
       "Puerto Montt (PMC)",
-      "Punta Arenas (PUQ)"
+      "Punta Arenas (PUQ)",
+      "Iquique (IQQ)",
+      "Isla de Pascua (IPC)"
     ]
   },
   {
     country: "Panamá",
     cities: [
-      "Ciudad de Panamá (PTY)"
+      "Ciudad de Panamá (PTY)",
+      "David (DAV)"
     ]
   },
   {
     country: "Brasil",
     cities: [
       "Río de Janeiro (GIG)",
-      "São Paulo (GRU)"
+      "São Paulo (GRU)",
+      "Brasilia (BSB)",
+      "Salvador (SSA)",
+      "Recife (REC)",
+      "Foz de Iguazú (IGU)"
+    ]
+  },
+  {
+    country: "Francia",
+    cities: [
+      "París (CDG)",
+      "Niza (NCE)",
+      "Lyon (LYS)",
+      "Marsella (MRS)",
+      "Toulouse (TLS)",
+      "Burdeos (BOD)"
+    ]
+  },
+  {
+    country: "Países Bajos (Holanda)",
+    cities: [
+      "Ámsterdam (AMS)",
+      "Róterdam (RTM)",
+      "Eindhoven (EIN)",
+      "Maastricht (MST)"
+    ]
+  },
+  {
+    country: "Reino Unido",
+    cities: [
+      "Londres (LHR)",
+      "Manchester (MAN)",
+      "Edimburgo (EDI)",
+      "Birmingham (BHX)",
+      "Glasgow (GLA)"
+    ]
+  },
+  {
+    country: "Italia",
+    cities: [
+      "Roma (FCO)",
+      "Milán (MXP)",
+      "Venecia (VCE)",
+      "Nápoles (NAP)",
+      "Florencia (FLR)"
+    ]
+  },
+  {
+    country: "Alemania",
+    cities: [
+      "Berlín (BER)",
+      "Fráncfort (FRA)",
+      "Múnich (MUC)",
+      "Hamburgo (HAM)",
+      "Düsseldorf (DUS)"
+    ]
+  },
+  {
+    country: "Portugal",
+    cities: [
+      "Lisboa (LIS)",
+      "Oporto (OPO)",
+      "Faro (FAO)",
+      "Funchal (FNC)"
+    ]
+  },
+  {
+    country: "Suiza",
+    cities: [
+      "Zúrich (ZRH)",
+      "Ginebra (GVA)",
+      "Basilea (BSL)"
+    ]
+  },
+  {
+    country: "Turquía",
+    cities: [
+      "Estambul (IST)",
+      "Antalya (AYT)",
+      "Esmirna (ADB)",
+      "Ankara (ESB)"
+    ]
+  },
+  {
+    country: "Grecia",
+    cities: [
+      "Atenas (ATH)",
+      "Santorini (JTR)",
+      "Heraclión (HER)",
+      "Salónica (SKG)"
+    ]
+  },
+  {
+    country: "Japón",
+    cities: [
+      "Tokio (NRT)",
+      "Tokio-Haneda (HND)",
+      "Osaka (KIX)",
+      "Nagoya (NGO)",
+      "Fukuoka (FUK)"
+    ]
+  },
+  {
+    country: "Corea del Sur",
+    cities: [
+      "Seúl (ICN)",
+      "Busan (PUS)",
+      "Jeju (CJU)"
+    ]
+  },
+  {
+    country: "Tailandia",
+    cities: [
+      "Bangkok (BKK)",
+      "Phuket (HKT)",
+      "Chiang Mai (CNX)",
+      "Koh Samui (USM)"
+    ]
+  },
+  {
+    country: "Emiratos Árabes Unidos",
+    cities: [
+      "Dubái (DXB)",
+      "Abu Dabi (AUH)"
+    ]
+  },
+  {
+    country: "Canadá",
+    cities: [
+      "Toronto (YYZ)",
+      "Vancouver (YVR)",
+      "Montreal (YUL)",
+      "Calgary (YYC)"
+    ]
+  },
+  {
+    country: "Costa Rica",
+    cities: [
+      "San José (SJO)",
+      "Liberia (LIR)"
+    ]
+  },
+  {
+    country: "Ecuador",
+    cities: [
+      "Quito (UIO)",
+      "Guayaquil (GYE)",
+      "Islas Galápagos (GPS)"
+    ]
+  },
+  {
+    country: "Bolivia",
+    cities: [
+      "La Paz (LPB)",
+      "Santa Cruz de la Sierra (VVI)",
+      "Cochabamba (CBB)"
+    ]
+  },
+  {
+    country: "Uruguay",
+    cities: [
+      "Montevideo (MVD)",
+      "Punta del Este (PDP)"
+    ]
+  },
+  {
+    country: "Guatemala",
+    cities: [
+      "Ciudad de Guatemala (GUA)",
+      "Flores (FRS)"
+    ]
+  },
+  {
+    country: "Cuba",
+    cities: [
+      "La Habana (HAV)",
+      "Varadero (VRA)",
+      "Holguín (HOG)"
+    ]
+  },
+  {
+    country: "Jamaica",
+    cities: [
+      "Montego Bay (MBJ)",
+      "Kingston (KIN)"
+    ]
+  },
+  {
+    country: "Australia",
+    cities: [
+      "Sídney (SYD)",
+      "Melbourne (MEL)",
+      "Brisbane (BNE)",
+      "Perth (PER)"
     ]
   }
 ];
