@@ -1,9 +1,11 @@
+import { GLOBAL_AIRPORTS } from './globalAirports';
+
 export interface CountryLocation {
   country: string;
   cities: string[];
 }
 
-export const COUNTRIES_AND_CITIES: CountryLocation[] = [
+const CURATED_COUNTRIES_AND_CITIES: CountryLocation[] = [
   {
     country: "Colombia",
     cities: [
@@ -320,4 +322,40 @@ export const COUNTRIES_AND_CITIES: CountryLocation[] = [
       "Perth (PER)"
     ]
   }
+];
+
+const countryNames = new Intl.DisplayNames(['es'], { type: 'region' });
+const airportCitiesByCountry = new Map<string, Set<string>>();
+
+for (const [countryCode, city, iataCode] of GLOBAL_AIRPORTS) {
+  const country = countryNames.of(countryCode) || countryCode;
+  const cities = airportCitiesByCountry.get(country) ?? new Set<string>();
+  cities.add(`${city} (${iataCode})`);
+  airportCitiesByCountry.set(country, cities);
+}
+
+const locationsByCountry = new Map<string, Set<string>>();
+const curatedCountryNames = new Set(CURATED_COUNTRIES_AND_CITIES.map(({ country }) => country));
+for (const { country, cities } of CURATED_COUNTRIES_AND_CITIES) {
+  locationsByCountry.set(country, new Set(cities));
+}
+
+for (const [country, cities] of airportCitiesByCountry) {
+  const existingCities = locationsByCountry.get(country) ?? new Set<string>();
+  for (const city of cities) existingCities.add(city);
+  locationsByCountry.set(country, existingCities);
+}
+
+export const COUNTRIES_AND_CITIES: CountryLocation[] = [
+  ...CURATED_COUNTRIES_AND_CITIES.map(({ country }) => ({
+    country,
+    cities: [...(locationsByCountry.get(country) ?? [])]
+  })),
+  ...[...airportCitiesByCountry.keys()]
+    .filter(country => !curatedCountryNames.has(country))
+    .sort((first, second) => first.localeCompare(second, 'es'))
+    .map(country => ({
+      country,
+      cities: [...(locationsByCountry.get(country) ?? [])]
+    }))
 ];
