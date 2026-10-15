@@ -243,7 +243,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       phone: `${phoneCountryCode} ${phone.trim()}`,
       cedula: titular.cedula,
       documentType: titular.documentType,
-      route: `${origin} ➔ ${destination}`,
+      route: `${origin} ➔ ${destination}${tripType === 'ROUND_TRIP' ? ` ➔ ${origin}` : ''}`,
       bookingCode: 'PENDIENTE',
       travelDate,
       returnDate: tripType === 'ROUND_TRIP' ? returnDate : '',

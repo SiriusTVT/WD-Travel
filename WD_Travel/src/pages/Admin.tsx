@@ -41,6 +41,18 @@ const formatPhoneForDisplay = (phone: string) =>
     : 'No registrado';
 const PAYMENT_METHODS = ['TRANSFERENCIA', 'EFECTIVO', 'TARJETA'];
 
+const getBookingRoute = (booking: Pick<Booking, 'route' | 'tripType' | 'returnDate'>) => {
+  const routeParts = booking.route.split(' ➔ ').map(stop => stop.trim()).filter(Boolean);
+  const origin = routeParts[0] || '';
+  const isRoundTrip = (booking.tripType ?? (booking.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP';
+  const lastStop = routeParts[routeParts.length - 1] || '';
+  const destination = isRoundTrip && routeParts.length > 2 && lastStop === origin
+    ? routeParts[routeParts.length - 2]
+    : lastStop;
+
+  return [origin, destination, ...(isRoundTrip ? [origin] : [])];
+};
+
 interface AdminProps {
   bookings: Booking[];
   setBookings: React.Dispatch<React.SetStateAction<Booking[]>>;
@@ -57,10 +69,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   // Estados de ubicación
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-
-  // Estado para Escalas
-  const [hasLayover, setHasLayover] = useState<boolean>(false);
-  const [layovers, setLayovers] = useState<string[]>(['']);
 
   const [newBooking, setNewBooking] = useState({
     quoteDate: new Date().toISOString().split('T')[0],
@@ -90,8 +98,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const resetForm = () => {
     setOrigin('');
     setDestination('');
-    setHasLayover(false);
-    setLayovers(['']);
     setNewBooking({
       quoteDate: new Date().toISOString().split('T')[0],
       purchaseDate: '',
@@ -121,11 +127,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const handleEditClick = (booking: Booking) => {
     setCompletingQuote(false);
     setEditingQuote(false);
-    const routeParts = booking.route.split(' ➔ ');
+    const routeParts = getBookingRoute(booking);
     setOrigin(routeParts[0] || '');
-    setDestination(routeParts[routeParts.length - 1] || '');
-    setHasLayover(routeParts.length > 2);
-    setLayovers(routeParts.length > 2 ? routeParts.slice(1, -1) : ['']);
+    setDestination(routeParts[1] || '');
     const primaryName = getNameParts(
       booking.firstName || booking.passengers?.[0]?.firstName,
       booking.lastName || booking.passengers?.[0]?.lastName,
@@ -224,11 +228,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     const hasInvalidRoute =
       !isValidLocation(origin) ||
       !isValidLocation(destination) ||
-      origin === destination ||
-      (hasLayover && (
-        layovers.some(layover => !isValidLocation(layover)) ||
-        layovers.some(layover => layover === origin || layover === destination)
-      ));
+      origin === destination;
     const hasInvalidDates =
       !isValidDate(newBooking.travelDate) ||
       (!editingBookingId && newBooking.travelDate < getLocalDateString()) ||
@@ -278,7 +278,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       return;
     }
 
-    const finalRoute = [origin, ...(hasLayover ? layovers : []), destination].join(' ➔ ');
+    const finalRoute = [origin, destination, ...(newBooking.tripType === 'ROUND_TRIP' ? [origin] : [])].join(' ➔ ');
     const firstName = newBooking.firstName.trim();
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
@@ -499,7 +499,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </td>
                 <td style={{ padding: '14px' }}>{formatPhoneForDisplay(b.phone)}</td>
                 <td style={{ padding: '14px', minWidth: '210px', lineHeight: 1.6 }}>
-                  {b.route.split(' ➔ ').map((stop, index, stops) => (
+                  {getBookingRoute(b).map((stop, index, stops) => (
                     <div key={`${b.id}-route-${index}`}>
                       {stop}{index < stops.length - 1 ? ' ➔' : ''}
                     </div>
@@ -589,7 +589,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               </div>
             )}
             <p><strong>Celular / WhatsApp:</strong> {formatPhoneForDisplay(selectedPassenger.phone)}</p>
-            <p><strong>Ruta:</strong> {selectedPassenger.route}</p>
+            <p><strong>Ruta:</strong> {getBookingRoute(selectedPassenger).join(' ➔ ')}</p>
             <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
             <p><strong>Aerolínea:</strong> {selectedPassenger.airline}</p>
             <p><strong>Método de Pago:</strong> {selectedPassenger.paymentMethod}</p>
@@ -779,71 +779,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
               </div>
-
-              {/* Opción de Escalas */}
-              {!editingQuote && <div style={{ padding: '12px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
-                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#9a3412', marginBottom: '8px' }}>
-                  ¿El vuelo tiene escalas / conexiones?:
-                </label>
-                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                  <label style={{ cursor: 'pointer', fontWeight: '600' }}>
-                    <input 
-                      type="radio" 
-                      name="layover" 
-                      checked={!hasLayover} 
-                      onChange={() => setHasLayover(false)} 
-                      style={{ marginRight: '6px' }} 
-                    />
-                    No (Vuelo Directo)
-                  </label>
-                  <label style={{ cursor: 'pointer', fontWeight: '600' }}>
-                    <input 
-                      type="radio" 
-                      name="layover" 
-                      checked={hasLayover} 
-                      onChange={() => setHasLayover(true)} 
-                      style={{ marginRight: '6px' }} 
-                    />
-                    Sí (Con Escalas)
-                  </label>
-                </div>
-
-                {hasLayover && (
-                  <div style={{ marginTop: '12px' }}>
-                    <label htmlFor="layover-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px', color: '#9a3412' }}>
-                      Cantidad de escalas:
-                    </label>
-                    <select
-                      id="layover-count"
-                      value={layovers.length}
-                      onChange={e => {
-                        const count = Number(e.target.value);
-                        setLayovers(current => Array.from({ length: count }, (_, index) => current[index] ?? ''));
-                      }}
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', marginBottom: '10px' }}
-                    >
-                      {Array.from({ length: 10 }, (_, index) => index + 1).map(count => (
-                        <option key={count} value={count}>{count}</option>
-                      ))}
-                    </select>
-
-                    {layovers.map((layover, index) => (
-                      <div key={index} style={{ padding: '10px', marginBottom: '8px', backgroundColor: '#fff', borderRadius: '6px' }}>
-                        <LocationSelector
-                          labelPrefix={`Escala ${index + 1}`}
-                          value={layover}
-                          onChange={value => setLayovers(current => current.map((stop, stopIndex) => stopIndex === index ? value : stop))}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#fff', borderRadius: '6px', color: '#374151' }}>
-                  <strong>Ruta completa:</strong>{' '}
-                  {[origin || 'Origen', ...(hasLayover ? layovers.map((stop, index) => stop || `Escala ${index + 1}`) : []), destination || 'Destino'].join(' ➔ ')}
-                </div>
-              </div>}
 
               {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
