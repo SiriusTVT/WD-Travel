@@ -59,7 +59,10 @@ interface AdminProps {
 }
 
 export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
-  const [activeView, setActiveView] = useState<'quotes' | 'purchases'>('quotes');
+  const [activeView, setActiveView] = useState<'quotes' | 'purchases' | 'sales'>('quotes');
+  const [salesPeriod, setSalesPeriod] = useState<'month' | 'year'>('month');
+  const [selectedSalesMonth, setSelectedSalesMonth] = useState(() => getLocalDateString().slice(0, 7));
+  const [selectedSalesYear, setSelectedSalesYear] = useState(() => getLocalDateString().slice(0, 4));
   const [search, setSearch] = useState('');
   const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -370,6 +373,23 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   );
   const pendingQuotes = searchedBookings.filter(booking => !booking.purchaseDate);
   const purchases = searchedBookings.filter(booking => Boolean(booking.purchaseDate));
+  const allPurchases = bookings.filter(booking => Boolean(booking.purchaseDate));
+  const filteredSales = allPurchases.filter(booking => salesPeriod === 'month'
+    ? Boolean(selectedSalesMonth) && booking.purchaseDate.startsWith(selectedSalesMonth)
+    : booking.purchaseDate.startsWith(`${selectedSalesYear}-`)
+  );
+  const salesYears = [...new Set([
+    getLocalDateString().slice(0, 4),
+    ...allPurchases
+      .map(booking => booking.purchaseDate.slice(0, 4))
+      .filter(year => /^\d{4}$/.test(year))
+  ])].sort((first, second) => Number(second) - Number(first));
+  const salesTotal = filteredSales.reduce((total, booking) => total + (Number(booking.totalValue) || 0), 0);
+  const salesCollected = filteredSales.reduce((total, booking) => total + (Number(booking.paidAmount) || 0), 0);
+  const salesBalance = filteredSales.reduce(
+    (total, booking) => total + Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)),
+    0
+  );
   const filteredBookings = activeView === 'quotes' ? pendingQuotes : purchases;
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
@@ -405,7 +425,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       </div>
 
       {/* Buscador */}
-      <div style={{ marginBottom: '20px' }}>
+      {activeView !== 'sales' && <div style={{ marginBottom: '20px' }}>
         <input
           type="text"
           placeholder="🔍 Buscar cliente por Nombre, Cédula o Celular..."
@@ -413,7 +433,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #d1d5db', fontSize: '1rem' }}
         />
-      </div>
+      </div>}
 
       <div role="tablist" aria-label="Secciones de administración" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #d1d5db' }}>
         <button
@@ -434,10 +454,124 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         >
           Compras registradas ({purchases.length})
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'sales'}
+          onClick={() => setActiveView('sales')}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'sales' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'sales' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Resumen de ventas
+        </button>
       </div>
 
       {/* Tabla estilo Excel */}
-      <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+      {activeView === 'sales' ? (
+        <section aria-label="Resumen de ventas e ingresos">
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: '12px', padding: '18px', marginBottom: '18px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+            <div>
+              <label htmlFor="sales-period" style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', color: '#374151' }}>Mostrar ventas por:</label>
+              <select
+                id="sales-period"
+                value={salesPeriod}
+                onChange={event => setSalesPeriod(event.target.value as 'month' | 'year')}
+                style={{ minWidth: '180px', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}
+              >
+                <option value="month">Mes</option>
+                <option value="year">Año</option>
+              </select>
+            </div>
+            {salesPeriod === 'month' ? (
+              <div>
+                <label htmlFor="sales-month" style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', color: '#374151' }}>Mes:</label>
+                <input
+                  id="sales-month"
+                  type="month"
+                  value={selectedSalesMonth}
+                  onChange={event => setSelectedSalesMonth(event.target.value)}
+                  style={{ minWidth: '180px', padding: '9px', borderRadius: '8px' }}
+                />
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="sales-year" style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', color: '#374151' }}>Año:</label>
+                <select
+                  id="sales-year"
+                  value={selectedSalesYear}
+                  onChange={event => setSelectedSalesYear(event.target.value)}
+                  style={{ minWidth: '180px', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}
+                >
+                  {salesYears.map(year => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </div>
+            )}
+            <p style={{ margin: '0 0 10px', color: '#6b7280' }}>
+              Período: <strong style={{ color: '#374151' }}>
+                {salesPeriod === 'month'
+                  ? selectedSalesMonth
+                    ? new Date(`${selectedSalesMonth}-01T00:00:00`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+                    : 'Selecciona un mes'
+                  : selectedSalesYear}
+              </strong>
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '18px' }}>
+            <article style={{ padding: '20px', backgroundColor: '#fff', borderRadius: '12px', borderLeft: '5px solid #2D60A8', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+              <p style={{ margin: '0 0 8px', color: '#6b7280', fontWeight: 'bold' }}>Ventas registradas</p>
+              <strong style={{ color: '#2D60A8', fontSize: '1.5rem' }}>{formatCurrency(salesTotal)}</strong>
+              <p style={{ margin: '8px 0 0', color: '#6b7280' }}>{filteredSales.length} venta(s)</p>
+            </article>
+            <article style={{ padding: '20px', backgroundColor: '#fff', borderRadius: '12px', borderLeft: '5px solid #16a34a', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+              <p style={{ margin: '0 0 8px', color: '#6b7280', fontWeight: 'bold' }}>Ingresos recibidos</p>
+              <strong style={{ color: '#16a34a', fontSize: '1.5rem' }}>{formatCurrency(salesCollected)}</strong>
+            </article>
+            <article style={{ padding: '20px', backgroundColor: '#fff', borderRadius: '12px', borderLeft: '5px solid #d97706', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+              <p style={{ margin: '0 0 8px', color: '#6b7280', fontWeight: 'bold' }}>Saldo por cobrar</p>
+              <strong style={{ color: '#d97706', fontSize: '1.5rem' }}>{formatCurrency(salesBalance)}</strong>
+            </article>
+          </div>
+
+          <p style={{ margin: '0 0 16px', color: '#6b7280', fontSize: '0.9rem' }}>
+            El resumen muestra ventas y pagos registrados; no calcula utilidad neta porque no incluye costos o gastos.
+          </p>
+
+          <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2D60A8', color: '#fff' }}>
+                  <th style={{ padding: '14px' }}>FECHA DE COMPRA</th>
+                  <th style={{ padding: '14px' }}>CLIENTE</th>
+                  <th style={{ padding: '14px' }}>RUTA</th>
+                  <th style={{ padding: '14px' }}>MÉTODO DE PAGO</th>
+                  <th style={{ padding: '14px' }}>VALOR VENDIDO</th>
+                  <th style={{ padding: '14px' }}>RECIBIDO</th>
+                  <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
+                  <th style={{ padding: '14px' }}>ESTADO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSales.length === 0 ? (
+                  <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>No hay ventas registradas en este período.</td></tr>
+                ) : filteredSales.map(booking => (
+                  <tr key={booking.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '14px' }}>{formatDisplayDate(booking.purchaseDate)}</td>
+                    <td style={{ padding: '14px', fontWeight: 'bold' }}>{booking.passenger}</td>
+                    <td style={{ padding: '14px' }}>{getBookingRoute(booking).join(' ➔ ')}</td>
+                    <td style={{ padding: '14px' }}>{booking.paymentMethod}</td>
+                    <td style={{ padding: '14px' }}>{formatCurrency(booking.totalValue)}</td>
+                    <td style={{ padding: '14px', color: '#16a34a' }}>{formatCurrency(booking.paidAmount)}</td>
+                    <td style={{ padding: '14px', color: booking.totalValue - booking.paidAmount > 0 ? '#d97706' : '#16a34a' }}>
+                      {formatCurrency(Math.max(0, booking.totalValue - booking.paidAmount))}
+                    </td>
+                    <td style={{ padding: '14px', fontWeight: 'bold' }}>{booking.paymentStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
           <thead>
             <tr style={{ backgroundColor: '#2D60A8', color: '#fff' }}>
@@ -562,7 +696,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Modal: Perfil Detallado */}
       {selectedPassenger && (
