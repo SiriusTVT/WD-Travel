@@ -33,10 +33,11 @@ app.post('/api/quotes', async (request, response) => {
   }
 
   try {
-    await quotesCollection.insertOne({
+    const result = await quotesCollection.insertOne({
       ...quote,
       createdAt: new Date()
     });
+    console.log(`Cotización guardada correctamente: ${result.insertedId}`);
     response.status(201).json({ saved: true });
   } catch (error) {
     console.error('Error guardando la cotización:', error);
@@ -53,6 +54,8 @@ async function start() {
   await mongoClient.connect();
   const database = mongoClient.db();
   quotesCollection = database.collection('quotes');
+  await database.command({ ping: 1 });
+  console.log(`Conexión con MongoDB establecida. Base de datos: ${database.databaseName}`);
   app.listen(PORT, () => {
     console.log(`Servidor escuchando en el puerto ${PORT}`);
   });
