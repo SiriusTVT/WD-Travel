@@ -4,6 +4,9 @@ const { MongoClient, ObjectId } = require('mongodb');
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGO_KEY = process.env.MONGO_KEY;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
+const QUOTE_NOTIFICATION_EMAIL = process.env.QUOTE_NOTIFICATION_EMAIL;
 
 if (!MONGO_KEY) {
   throw new Error('La variable de entorno MONGO_KEY no está configurada.');
@@ -15,6 +18,109 @@ let quotesCollection;
 let salesCollection;
 
 app.use(express.json({ limit: '50kb' }));
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function removeCedula(value) {
+  if (Array.isArray(value)) {
+    return value.map(removeCedula);
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key.toLowerCase() !== 'cedula')
+        .map(([key, item]) => [key, removeCedula(item)])
+    );
+  }
+  return value;
+}
+
+async function sendQuoteNotification(quote) {
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL || !QUOTE_NOTIFICATION_EMAIL) {
+    console.error(
+      'No se envió el aviso de cotización: configura RESEND_API_KEY, RESEND_FROM_EMAIL y QUOTE_NOTIFICATION_EMAIL.'
+    );
+    return false;
+  }
+
+  const safeQuote = removeCedula(quote);
+  const labels = {
+    id: 'ID de cotización',
+    quoteDate: 'Fecha de cotización',
+    purchaseDate: 'Fecha de compra',
+    firstName: 'Nombres',
+    lastName: 'Apellidos',
+    name: 'Nombre',
+    passenger: 'Titular',
+    phone: 'Teléfono / WhatsApp',
+    documentType: 'Tipo de documento',
+    route: 'Ruta',
+    bookingCode: 'Código de reserva',
+    travelDate: 'Fecha de ida',
+    returnDate: 'Fecha de regreso',
+    tripType: 'Tipo de viaje',
+    adultCount: 'Cantidad de adultos',
+    childCount: 'Cantidad de niños',
+    childAges: 'Edades de los niños',
+    isTicket: 'Incluye tiquete',
+    isPackage: 'Incluye paquete',
+    airline: 'Aerolínea',
+    paymentMethod: 'Método de pago',
+    totalValue: 'Valor total',
+    paymentStatus: 'Estado del pago',
+    paidAmount: 'Valor pagado',
+    passengers: 'Pasajeros'
+  };
+  const details = Object.entries(safeQuote)
+    .filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    .map(([key, value]) => {
+      const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+      return {
+        label: labels[key] || key,
+        value: displayValue
+      };
+    });
+  const text = details.map(({ label, value }) => `${label}:\n${value}`).join('\n\n');
+  const html = details.map(({ label, value }) =>
+    `<h3>${escapeHtml(label)}</h3><pre style="white-space:pre-wrap;font-family:Arial,sans-serif">${escapeHtml(value)}</pre>`
+  ).join('');
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: [QUOTE_NOTIFICATION_EMAIL],
+        subject: `Nueva cotización recibida - ${safeQuote.passenger || safeQuote.id}`,
+        text,
+        html: `<h2>Nueva cotización recibida</h2>${html}`
+      })
+    });
+
+    if (!response.ok) {
+      console.error(`Resend rechazó el aviso de cotización (HTTP ${response.status}).`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error enviando el aviso de cotización:', error);
+    return false;
+  }
+}
 
 function buildIdFilter(id) {
   const filters = [{ id: String(id) }];
@@ -70,13 +176,16 @@ app.post('/api/quotes', async (request, response) => {
 
   try {
     const id = quote.id || Date.now().toString();
-    const result = await quotesCollection.insertOne({
+    const savedQuote = {
       ...quote,
       id,
       createdAt: new Date()
-    });
+    };
+    const result = await quotesCollection.insertOne(savedQuote);
     console.log(`Cotización guardada correctamente: ${result.insertedId}`);
-    response.status(201).json({ saved: true, id });
+
+    const notificationSent = await sendQuoteNotification(savedQuote);
+    response.status(201).json({ saved: true, id, notificationSent });
   } catch (error) {
     console.error('Error guardando la cotización:', error);
     response.status(500).json({ error: 'No fue posible guardar la cotización.' });

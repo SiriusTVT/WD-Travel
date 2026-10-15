@@ -6,15 +6,22 @@
 - **Compras registradas (Ventas realizadas):** Al dar click en **Completar compra** y guardar con **Registrar compra y mover a Compras**, el registro se traslada de `quotes` al nuevo esquema/colección `ventas_realizadas` en MongoDB mediante `POST /api/sales`. Además, al editar una compra desde el panel, los cambios se actualizan mediante `PUT /api/sales/:id`.
 - **Consulta persistente:** La sección de **Compras registradas** consulta directamente las compras persistidas en `ventas_realizadas` mediante `GET /api/sales` al abrirse o seleccionarse, garantizando que los datos persistan y se mantengan actualizados.
 - **Seguridad:** La conexión a la base de datos se obtiene exclusivamente desde la variable de entorno `MONGO_KEY` en el servidor Node/Express (`server.cjs`).
+- **Aviso por correo:** Cada cotización nueva guardada en MongoDB genera un correo mediante Resend. El mensaje incluye la información de la cotización, excepto la cédula, que se excluye también de los datos de pasajeros.
 
-En Render, configura:
+En Render, configura estas variables de entorno:
 
 - **Build Command:** `npm run build`
 - **Start Command:** `npm start`
-- **Environment Variable:** `MONGO_KEY` con la cadena de conexión de MongoDB
+- `MONGO_KEY`: cadena de conexión de MongoDB.
+- `RESEND_API_KEY`: clave API de Resend.
+- `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
+- `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.
 
 Para desarrollo local, inicia el servidor con `MONGO_KEY="..." npm start` después de
 construir el frontend. Vite redirige `/api` al servidor local en el puerto 3000.
+También debes configurar las tres variables de Resend anteriores; el remitente debe estar
+verificado en Resend. Si falta alguna o Resend rechaza/falla el envío, la cotización se
+guarda de todas formas y el sistema informa que no se pudo enviar el aviso.
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 

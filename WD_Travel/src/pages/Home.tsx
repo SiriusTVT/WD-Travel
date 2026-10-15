@@ -96,6 +96,7 @@ interface HomeProps {
 export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notificationSent, setNotificationSent] = useState<boolean | null>(null);
   const [isHeroVideoFading, setIsHeroVideoFading] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
@@ -263,6 +264,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     };
 
     setIsSubmitting(true);
+    setNotificationSent(null);
     try {
       const response = await fetch('/api/quotes', {
         method: 'POST',
@@ -274,6 +276,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         throw new Error('No fue posible guardar la cotización.');
       }
 
+      const result: { notificationSent?: boolean } = await response.json();
+      setNotificationSent(result.notificationSent === true);
       onBookingSubmit(booking);
       setSubmitted(true);
     } catch (error) {
@@ -470,6 +474,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               <p style={{ margin: 0 }}>
                 Cotización registrada para la ruta: <strong>{origin} ➔ {destination}</strong>. Nos pondremos en contacto lo más pronto posible.
               </p>
+              {notificationSent === false && (
+                <p role="status" style={{ margin: '12px 0 0', color: '#92400e' }}>
+                  La cotización quedó registrada, pero no se pudo enviar el aviso por correo al equipo. No es necesario volver a enviarla.
+                </p>
+              )}
               <button
                 onClick={() => setSubmitted(false)}
                 style={{ marginTop: '20px', padding: '10px 24px', backgroundColor: '#2D60A8', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
