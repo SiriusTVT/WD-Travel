@@ -2,9 +2,11 @@
 
 ## Persistencia de cotizaciones
 
-Las cotizaciones del formulario principal se guardan en MongoDB mediante el endpoint
-`POST /api/quotes`. La conexión se obtiene exclusivamente desde la variable de entorno
-`MONGO_KEY`; nunca se incluye en el código del navegador.
+Las cotizaciones del formulario principal se guardan y consultan en MongoDB mediante los
+endpoints `POST /api/quotes` y `GET /api/quotes`. Al abrir la aplicación, las cotizaciones
+persistidas se cargan en la sección de cotizaciones pendientes del administrador. La conexión
+se obtiene exclusivamente desde la variable de entorno `MONGO_KEY`; nunca se incluye en el
+código del navegador.
 
 En Render, configura:
 

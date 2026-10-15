@@ -15,6 +15,21 @@ let quotesCollection;
 
 app.use(express.json({ limit: '50kb' }));
 
+app.get('/api/quotes', async (request, response) => {
+  try {
+    const quotes = await quotesCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .project({ _id: 0 })
+      .toArray();
+    response.json(quotes);
+  } catch (error) {
+    console.error('Error consultando las cotizaciones:', error);
+    response.status(500).json({ error: 'No fue posible consultar las cotizaciones.' });
+  }
+});
+
 app.post('/api/quotes', async (request, response) => {
   const quote = request.body;
 
