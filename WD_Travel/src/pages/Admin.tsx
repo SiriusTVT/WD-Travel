@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { type Booking, type Passenger } from '../data/mockData';
+import { type Booking } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { CallingCodeSelector } from '../components/CallingCodeSelector';
 import { isValidCallingCode } from '../data/callingCodes';
@@ -54,8 +54,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [completingQuote, setCompletingQuote] = useState(false);
   const [editingQuote, setEditingQuote] = useState(false);
-  const [additionalPassengers, setAdditionalPassengers] = useState<Passenger[]>([]);
-
   // Estados de ubicación
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -94,7 +92,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setDestination('');
     setHasLayover(false);
     setLayovers(['']);
-    setAdditionalPassengers([]);
     setNewBooking({
       quoteDate: new Date().toISOString().split('T')[0],
       purchaseDate: '',
@@ -129,19 +126,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setDestination(routeParts[routeParts.length - 1] || '');
     setHasLayover(routeParts.length > 2);
     setLayovers(routeParts.length > 2 ? routeParts.slice(1, -1) : ['']);
-    const passengerList = booking.passengers?.length
-      ? booking.passengers
-      : [{ name: booking.passenger, cedula: booking.cedula }];
     const primaryName = getNameParts(
       booking.firstName || booking.passengers?.[0]?.firstName,
       booking.lastName || booking.passengers?.[0]?.lastName,
       booking.passenger || booking.passengers?.[0]?.name
     );
     const phoneParts = getPhoneParts(booking.phone);
-    setAdditionalPassengers(passengerList.slice(1).map(passenger => ({
-      ...passenger,
-      ...getNameParts(passenger.firstName, passenger.lastName, passenger.name)
-    })));
     setNewBooking({
       quoteDate: booking.quoteDate || booking.purchaseDate,
       purchaseDate: booking.purchaseDate,
@@ -198,6 +188,22 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setCompletingQuote(true);
   };
 
+  const normalizeTravelerCounts = () => {
+    setNewBooking(current => {
+      const adultCount = current.adultCount || 1;
+      const childCount = current.childCount || 0;
+      return {
+        ...current,
+        adultCount,
+        childCount,
+        childAges: Array.from(
+          { length: Number(childCount) },
+          (_, index) => current.childAges[index] ?? ''
+        )
+      };
+    });
+  };
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -233,17 +239,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
 
     if (hasInvalidRoute || hasInvalidDates || hasInvalidPassengerCounts) {
       window.alert('Verifica la ruta, las fechas y la cantidad de viajeros. Cada niño debe tener una edad entre 0 y 17 años.');
-      return;
-    }
-
-    if (!editingQuote && (
-      additionalPassengers.some(passenger =>
-        !isValidPersonName(passenger.firstName ?? '') ||
-        !isValidPersonName(passenger.lastName ?? '') ||
-        !isValidDocumentNumber(passenger.cedula, passenger.documentType || 'Cédula de ciudadanía')
-      )
-    )) {
-      window.alert('Verifica los documentos de los pasajeros adicionales.');
       return;
     }
 
@@ -288,26 +283,13 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
     const existingBooking = bookings.find(booking => booking.id === editingBookingId);
-    const passengers = [
-      {
-        firstName,
-        lastName,
-        name: passengerName,
-        cedula: newBooking.cedula,
-        documentType: newBooking.documentType
-      },
-      ...additionalPassengers.map(passenger => {
-        const passengerFirstName = passenger.firstName?.trim() ?? '';
-        const passengerLastName = passenger.lastName?.trim() ?? '';
-        return {
-          ...passenger,
-          firstName: passengerFirstName,
-          lastName: passengerLastName,
-          documentType: passenger.documentType || 'Cédula de ciudadanía',
-          name: joinName(passengerFirstName, passengerLastName)
-        };
-      })
-    ];
+    const primaryPassenger = {
+      firstName,
+      lastName,
+      name: passengerName,
+      cedula: newBooking.cedula,
+      documentType: newBooking.documentType
+    };
     const quoteData = {
       firstName,
       lastName,
@@ -325,8 +307,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       isTicket: newBooking.isTicket,
       isPackage: newBooking.isPackage,
       passengers: editingBookingId && existingBooking?.passengers.length
-        ? [passengers[0], ...existingBooking.passengers.slice(1)]
-        : passengers
+        ? [primaryPassenger, ...existingBooking.passengers.slice(1)]
+        : [primaryPassenger]
     };
 
     if (editingQuote && editingBookingId) {
@@ -692,106 +674,65 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                 </div>
               </div>
 
-              {!editingBookingId && <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad de pasajeros:</label>
-                <select
-                  value={additionalPassengers.length + 1}
-                  onChange={e => {
-                    const count = Number(e.target.value);
-                    setAdditionalPassengers(currentPassengers => Array.from(
-                      { length: count - 1 },
-                      (_, index) => currentPassengers[index] ?? { firstName: '', lastName: '', name: '', cedula: '' }
-                    ));
-                  }}
-                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                >
-                  {Array.from({ length: 10 }, (_, index) => index + 1).map(count => (
-                    <option key={count} value={count}>{count}</option>
-                  ))}
-                </select>
-              </div>}
-
-              {!editingBookingId && additionalPassengers.map((passenger, index) => (
-                <div key={index} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <strong style={{ display: 'block', marginBottom: '8px' }}>Pasajero {index + 2}</strong>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Nombres" value={passenger.firstName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                    <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Apellidos" value={passenger.lastName ?? ''} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: e.target.value } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                    <select required value={passenger.documentType || 'Cédula de ciudadanía'} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? {
-                      ...item,
-                      documentType: e.target.value,
-                      cedula: normalizeDocumentNumber(item.cedula, e.target.value)
-                    } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
-                      <option>Cédula de ciudadanía</option>
-                      <option>Tarjeta de identidad</option>
-                      <option>Registro civil</option>
-                      <option>Cédula de extranjería</option>
-                      <option>Pasaporte</option>
-                    </select>
-                    <input required type="text" inputMode={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? 'text' : 'numeric'} minLength={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={(passenger.documentType || 'Cédula de ciudadanía') === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} placeholder="Número de identidad" value={passenger.cedula} onChange={e => setAdditionalPassengers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, cedula: normalizeDocumentNumber(e.target.value, item.documentType || 'Cédula de ciudadanía') } : item))} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <strong>Cantidad de personas que viajan (adultos y niños)</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label htmlFor="admin-adult-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Adultos:</label>
+                    <input
+                      id="admin-adult-count"
+                      required
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{1,2}"
+                      title={`Ingresa un número entero entre 1 y ${MAX_TRAVELERS - (Number(newBooking.childCount) || 0)}.`}
+                      value={newBooking.adultCount}
+                      onBlur={normalizeTravelerCounts}
+                      onChange={e => setNewBooking(current => {
+                        const maxAdults = MAX_TRAVELERS - (Number(current.childCount) || 0);
+                        const adultCount = clampIntegerInput(e.target.value, maxAdults);
+                        return { ...current, adultCount: adultCount === '' ? '' : Number(adultCount) };
+                      })}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                    />
                   </div>
-                </div>
-              ))}
-
-              {editingBookingId && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <strong>Personas que viajan</strong>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div>
-                      <label htmlFor="quote-adult-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Adultos:</label>
-                      <input
-                        id="quote-adult-count"
-                        required
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]{1,2}"
-                        title={`Ingresa un número entero entre 1 y ${MAX_TRAVELERS - (Number(newBooking.childCount) || 0)}.`}
-                        value={newBooking.adultCount}
-                        onChange={e => setNewBooking(current => {
-                          const maxAdults = MAX_TRAVELERS - (Number(current.childCount) || 0);
-                          const adultCount = clampIntegerInput(e.target.value, maxAdults);
-                          return { ...current, adultCount: adultCount === '' ? '' : Number(adultCount) };
-                        })}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="quote-child-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Niños:</label>
-                      <input
-                        id="quote-child-count"
-                        required
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]{1,2}"
-                        title={`Ingresa un número entero entre 0 y ${MAX_TRAVELERS - (Number(newBooking.adultCount) || 1)}.`}
-                        value={newBooking.childCount}
-                        onChange={e => {
-                          setNewBooking(current => {
-                            const maxChildren = MAX_TRAVELERS - (Number(current.adultCount) || 1);
-                            const value = clampIntegerInput(e.target.value, maxChildren);
-                            if (value === '') return { ...current, childCount: '', childAges: [] };
-                            const childCount = Number(value);
-                            return {
-                              ...current,
-                              childCount,
-                              childAges: Array.from(
-                                { length: childCount },
-                                (_, index) => current.childAges[index] ?? ''
-                              )
-                            };
-                          });
-                        }}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
-                      />
-                    </div>
+                  <div>
+                    <label htmlFor="admin-child-count" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Niños:</label>
+                    <input
+                      id="admin-child-count"
+                      required
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{1,2}"
+                      title={`Ingresa un número entero entre 0 y ${MAX_TRAVELERS - (Number(newBooking.adultCount) || 1)}.`}
+                      value={newBooking.childCount}
+                      onBlur={normalizeTravelerCounts}
+                      onChange={e => {
+                        setNewBooking(current => {
+                          const maxChildren = MAX_TRAVELERS - (Number(current.adultCount) || 1);
+                          const value = clampIntegerInput(e.target.value, maxChildren);
+                          if (value === '') return { ...current, childCount: '', childAges: [] };
+                          const childCount = Number(value);
+                          return {
+                            ...current,
+                            childCount,
+                            childAges: Array.from(
+                              { length: childCount },
+                              (_, index) => current.childAges[index] ?? ''
+                            )
+                          };
+                        });
+                      }}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px' }}
+                    />
                   </div>
                   {Number(newBooking.childCount) > 0 && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       {newBooking.childAges.map((age, index) => (
                         <div key={index}>
-                          <label htmlFor={`quote-child-age-${index}`} style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Edad del niño {index + 1}:</label>
+                          <label htmlFor={`admin-child-age-${index}`} style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Edad del niño {index + 1}:</label>
                           <input
-                            id={`quote-child-age-${index}`}
+                            id={`admin-child-age-${index}`}
                             required
                             type="text"
                             inputMode="numeric"
@@ -814,7 +755,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                     </div>
                   )}
                 </div>
-              )}
+              </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de servicio:</label>
