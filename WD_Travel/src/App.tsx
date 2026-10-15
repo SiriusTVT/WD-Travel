@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Home } from './pages/Home';
 import { Admin } from './pages/Admin';
-import { MOCK_BOOKINGS, type Booking } from './data/mockData';
+import { type Booking } from './data/mockData';
 
 function App() {
   const [currentTab, setCurrentTab] = useState<'home' | 'admin'>('home');
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -27,14 +27,7 @@ function App() {
         }
 
         const dbItems = [...quotes, ...sales];
-        if (dbItems.length > 0) {
-          setBookings(currentBookings => {
-            const localBookings = currentBookings.filter(
-              booking => !dbItems.some(item => item.id === booking.id)
-            );
-            return [...dbItems, ...localBookings];
-          });
-        }
+        setBookings(dbItems);
       } catch (error) {
         console.error('No fue posible cargar los datos desde MongoDB:', error);
       }
