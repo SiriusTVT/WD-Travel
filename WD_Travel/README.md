@@ -1,12 +1,11 @@
 # React + TypeScript + Vite
 
-## Persistencia de cotizaciones
+## Persistencia de cotizaciones y ventas realizadas
 
-Las cotizaciones del formulario principal se guardan y consultan en MongoDB mediante los
-endpoints `POST /api/quotes` y `GET /api/quotes`. Al abrir la aplicación, las cotizaciones
-persistidas se cargan en la sección de cotizaciones pendientes del administrador. La conexión
-se obtiene exclusivamente desde la variable de entorno `MONGO_KEY`; nunca se incluye en el
-código del navegador.
+- **Cotizaciones pendientes:** Se guardan y consultan en MongoDB en la colección `quotes` mediante los endpoints `POST /api/quotes` y `GET /api/quotes`.
+- **Compras registradas (Ventas realizadas):** Al dar click en **Completar compra** y guardar con **Registrar compra y mover a Compras**, el registro se traslada de `quotes` al nuevo esquema/colección `ventas_realizadas` en MongoDB mediante `POST /api/sales` (o `POST /api/purchases`).
+- **Consulta persistente:** La sección de **Compras registradas** consulta directamente las compras persistidas en `ventas_realizadas` mediante `GET /api/sales` al abrirse o seleccionarse, garantizando que los datos persistan y se mantengan actualizados.
+- **Seguridad:** La conexión a la base de datos se obtiene exclusivamente desde la variable de entorno `MONGO_KEY` en el servidor Node/Express (`server.cjs`).
 
 En Render, configura:
 

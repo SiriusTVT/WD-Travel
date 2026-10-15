@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { type Booking } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { CallingCodeSelector } from '../components/CallingCodeSelector';
@@ -72,6 +72,33 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   // Estados de ubicación
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [isLoadingPurchases, setIsLoadingPurchases] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchPurchases = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sales');
+      if (response.ok) {
+        const salesData: Booking[] = await response.json();
+        setBookings(currentBookings => {
+          const nonPurchases = currentBookings.filter(
+            b => !salesData.some(s => s.id === b.id)
+          );
+          return [...salesData, ...nonPurchases];
+        });
+      }
+    } catch (error) {
+      console.error('Error al consultar compras registradas:', error);
+    } finally {
+      setIsLoadingPurchases(false);
+    }
+  }, [setBookings]);
+
+  useEffect(() => {
+    if (activeView === 'purchases') {
+      void fetchPurchases();
+    }
+  }, [activeView, fetchPurchases]);
 
   const [newBooking, setNewBooking] = useState({
     quoteDate: new Date().toISOString().split('T')[0],
@@ -173,9 +200,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setEditingQuote(true);
   };
 
-  const handleDeleteClick = (booking: Booking) => {
+  const handleDeleteClick = async (booking: Booking) => {
     const shouldDelete = window.confirm(`¿Deseas eliminar el registro de ${booking.passenger}?`);
     if (!shouldDelete) return;
+
+    try {
+      if (booking.purchaseDate) {
+        await fetch(`/api/sales/${booking.id}`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/quotes/${booking.id}`, { method: 'DELETE' });
+      }
+    } catch (error) {
+      console.error('Error eliminando registro en la base de datos:', error);
+    }
 
     setBookings(currentBookings => currentBookings.filter(currentBooking => currentBooking.id !== booking.id));
     setSelectedPassenger(currentPassenger => currentPassenger?.id === booking.id ? null : currentPassenger);
@@ -211,7 +248,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     });
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const adultCount = Number(newBooking.adultCount);
@@ -345,9 +382,53 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         : Math.min(Number(newBooking.paidAmount) || 0, totalValue)
     };
 
-    if (editingBookingId) {
+    const finalId = editingBookingId || Date.now().toString();
+    const finalBooking: Booking = {
+      ...bookingData,
+      id: finalId,
+      purchaseDate
+    };
+
+    if (completingQuote) {
+      try {
+        setIsSaving(true);
+        const res = await fetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quoteId: editingBookingId,
+            ...finalBooking
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error('Error al registrar compra y mover a ventas realizadas.');
+        }
+
+        setBookings(currentBookings => {
+          const filtered = currentBookings.filter(b => b.id !== editingBookingId);
+          return [finalBooking, ...filtered];
+        });
+      } catch (error) {
+        console.error('Error registrando la compra en la base de datos:', error);
+        window.alert('No fue posible mover la cotización a compras en la base de datos. Verifica tu conexión.');
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+    } else if (editingBookingId) {
+      try {
+        await fetch(`/api/sales/${editingBookingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(finalBooking)
+        });
+      } catch (error) {
+        console.error('Error actualizando compra en base de datos:', error);
+      }
       setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
-        ? { id: booking.id, ...bookingData }
+        ? finalBooking
         : booking
       ));
     } else {
@@ -355,6 +436,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         id: Date.now().toString(),
         ...bookingData
       };
+      if (newBooking.paymentStatus === 'PAGADO' || purchaseDate) {
+        try {
+          await fetch('/api/sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(created)
+          });
+        } catch (error) {
+          console.error('Error guardando compra manual en base de datos:', error);
+        }
+      }
       setBookings(currentBookings => [created, ...currentBookings]);
     }
 
@@ -363,7 +455,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setCompletingQuote(false);
     setEditingQuote(false);
     resetForm();
-    setActiveView(completingQuote || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes');
+
+    const targetView = completingQuote || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
+    setActiveView(targetView);
+    if (targetView === 'purchases') {
+      void fetchPurchases();
+    }
   };
 
   const searchedBookings = bookings.filter(b =>
@@ -449,10 +546,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           type="button"
           role="tab"
           aria-selected={activeView === 'purchases'}
-          onClick={() => setActiveView('purchases')}
-          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'purchases' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'purchases' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={() => {
+            setActiveView('purchases');
+            void fetchPurchases();
+          }}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'purchases' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'purchases' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          Compras registradas ({purchases.length})
+          <span>Compras registradas ({purchases.length})</span>
+          {isLoadingPurchases && <span style={{ fontSize: '0.8rem' }}>🔄</span>}
         </button>
         <button
           type="button"
@@ -602,7 +703,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
             {filteredBookings.length === 0 ? (
               <tr>
                 <td colSpan={activeView === 'quotes' ? 10 : 17} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
-                  {activeView === 'quotes' ? 'No hay cotizaciones pendientes.' : 'Todavía no hay compras registradas.'}
+                  {activeView === 'quotes'
+                    ? 'No hay cotizaciones pendientes.'
+                    : isLoadingPurchases
+                      ? 'Cargando compras registradas desde la base de datos...'
+                      : 'Todavía no hay compras registradas.'}
                 </td>
               </tr>
             ) : filteredBookings.map((b) => (
@@ -1021,8 +1126,22 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
               )}
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  {completingQuote ? 'Registrar compra y mover a Compras' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: '#E3B31D',
+                    color: '#2D60A8',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    cursor: isSaving ? 'not-allowed' : 'pointer',
+                    opacity: isSaving ? 0.7 : 1
+                  }}
+                >
+                  {isSaving ? 'Guardando...' : completingQuote ? 'Registrar compra y mover a Compras' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
                 </button>
                 <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); setCompletingQuote(false); setEditingQuote(false); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   Cancelar

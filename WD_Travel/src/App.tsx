@@ -9,32 +9,48 @@ function App() {
   const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
 
   useEffect(() => {
-    const loadQuotes = async () => {
+    const loadData = async () => {
       try {
-        const response = await fetch('/api/quotes');
-        if (!response.ok) {
-          throw new Error(`La consulta respondió con estado ${response.status}.`);
+        const [quotesResponse, salesResponse] = await Promise.allSettled([
+          fetch('/api/quotes'),
+          fetch('/api/sales')
+        ]);
+
+        let quotes: Booking[] = [];
+        let sales: Booking[] = [];
+
+        if (quotesResponse.status === 'fulfilled' && quotesResponse.value.ok) {
+          quotes = await quotesResponse.value.json();
+        }
+        if (salesResponse.status === 'fulfilled' && salesResponse.value.ok) {
+          sales = await salesResponse.value.json();
         }
 
-        const quotes: Booking[] = await response.json();
-        setBookings(currentBookings => {
-          const localBookings = currentBookings.filter(
-            booking => !quotes.some(quote => quote.id === booking.id)
-          );
-          return [...quotes, ...localBookings];
-        });
+        const dbItems = [...quotes, ...sales];
+        if (dbItems.length > 0) {
+          setBookings(currentBookings => {
+            const localBookings = currentBookings.filter(
+              booking => !dbItems.some(item => item.id === booking.id)
+            );
+            return [...dbItems, ...localBookings];
+          });
+        }
       } catch (error) {
-        console.error('No fue posible cargar las cotizaciones desde MongoDB:', error);
+        console.error('No fue posible cargar los datos desde MongoDB:', error);
       }
     };
 
-    void loadQuotes();
+    void loadData();
   }, []);
 
   return (
     <div style={{ backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
       <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} />
-      {currentTab === 'home' ? <Home onBookingSubmit={booking => setBookings(currentBookings => [booking, ...currentBookings])} /> : <Admin bookings={bookings} setBookings={setBookings} />}
+      {currentTab === 'home' ? (
+        <Home onBookingSubmit={booking => setBookings(currentBookings => [booking, ...currentBookings])} />
+      ) : (
+        <Admin bookings={bookings} setBookings={setBookings} />
+      )}
     </div>
   );
 }
