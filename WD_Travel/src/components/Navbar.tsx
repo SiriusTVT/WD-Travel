@@ -42,10 +42,15 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
   return (
     <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 30px', background: 'linear-gradient(110deg, #102f59, #2468b3)', color: '#fff', boxShadow: '0 4px 16px rgba(16,47,89,0.22)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <img src={logo} alt="WD Travel Logo" style={{ height: '45px', objectFit: 'contain', backgroundColor: '#fff', padding: '4px', borderRadius: '6px' }} />
+      <button
+        type="button"
+        onClick={() => setCurrentTab('home')}
+        aria-label="Volver a la página principal de WD Travel"
+        style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: 0, border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+      >
+        <img src={logo} alt="" style={{ height: '45px', objectFit: 'contain', backgroundColor: '#fff', padding: '4px', borderRadius: '6px' }} />
         <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#fff' }}>WD Travel</h2>
-      </div>
+      </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} aria-label="Redes sociales">
           {socialLinks.map(socialLink => (
