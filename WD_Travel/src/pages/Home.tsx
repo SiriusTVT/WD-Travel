@@ -95,6 +95,7 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isHeroVideoFading, setIsHeroVideoFading] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
@@ -189,7 +190,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     }, 500);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedAdultCount = Number(adultCount);
     const normalizedChildCount = Number(childCount);
@@ -233,7 +234,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       documentType
     };
 
-    onBookingSubmit({
+    const booking: Booking = {
       id: Date.now().toString(),
       quoteDate: new Date().toISOString().split('T')[0],
       purchaseDate: '',
@@ -259,8 +260,28 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       paymentStatus: 'PENDIENTE',
       paidAmount: 0,
       passengers: [titular]
-    });
-    setSubmitted(true);
+    };
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking)
+      });
+
+      if (!response.ok) {
+        throw new Error('No fue posible guardar la cotización.');
+      }
+
+      onBookingSubmit(booking);
+      setSubmitted(true);
+    } catch (error) {
+      console.error('Error enviando la cotización:', error);
+      window.alert('No fue posible guardar tu cotización. Revisa tu conexión e inténtalo nuevamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -591,9 +612,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
               <button
                 type="submit"
+                disabled={isSubmitting}
                 style={{ marginTop: '10px', width: '100%', padding: '15px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '10px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 14px rgba(227,179,29,0.35)' }}
               >
-                Enviar Solicitud de Cotización
+                {isSubmitting ? 'Guardando cotización...' : 'Enviar Solicitud de Cotización'}
               </button>
             </form>
           )}

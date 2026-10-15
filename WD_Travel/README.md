@@ -1,5 +1,20 @@
 # React + TypeScript + Vite
 
+## Persistencia de cotizaciones
+
+Las cotizaciones del formulario principal se guardan en MongoDB mediante el endpoint
+`POST /api/quotes`. La conexión se obtiene exclusivamente desde la variable de entorno
+`MONGO_KEY`; nunca se incluye en el código del navegador.
+
+En Render, configura:
+
+- **Build Command:** `npm run build`
+- **Start Command:** `npm start`
+- **Environment Variable:** `MONGO_KEY` con la cadena de conexión de MongoDB
+
+Para desarrollo local, inicia el servidor con `MONGO_KEY="..." npm start` después de
+construir el frontend. Vite redirige `/api` al servidor local en el puerto 3000.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
