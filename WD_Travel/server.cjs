@@ -83,6 +83,27 @@ app.post('/api/quotes', async (request, response) => {
   }
 });
 
+// Actualizar cotización existente
+app.put('/api/quotes/:id', async (request, response) => {
+  try {
+    const id = request.params.id;
+    const { _id, ...updateData } = request.body;
+    const result = await quotesCollection.updateOne(
+      buildIdFilter(id),
+      { $set: { ...updateData, updatedAt: new Date() } }
+    );
+    if (result.matchedCount === 0) {
+      console.warn(`No se encontró la cotización con ID ${id} para actualizar.`);
+    } else {
+      console.log(`Cotización con ID ${id} actualizada exitosamente en quotes.`);
+    }
+    response.json({ updated: true, matchedCount: result.matchedCount });
+  } catch (error) {
+    console.error('Error actualizando la cotización en quotes:', error);
+    response.status(500).json({ error: 'No fue posible actualizar la cotización.' });
+  }
+});
+
 // Eliminar cotización
 app.delete('/api/quotes/:id', async (request, response) => {
   try {
@@ -170,14 +191,19 @@ app.post(['/api/sales', '/api/purchases'], async (request, response) => {
 app.put(['/api/sales/:id', '/api/purchases/:id'], async (request, response) => {
   try {
     const id = request.params.id;
-    const updateData = request.body;
-    await salesCollection.updateOne(
+    const { _id, ...updateData } = request.body;
+    const result = await salesCollection.updateOne(
       buildIdFilter(id),
       { $set: { ...updateData, updatedAt: new Date() } }
     );
-    response.json({ updated: true });
+    if (result.matchedCount === 0) {
+      console.warn(`No se encontró la compra con ID ${id} para actualizar.`);
+    } else {
+      console.log(`Compra con ID ${id} actualizada exitosamente en ventas_realizadas.`);
+    }
+    response.json({ updated: true, matchedCount: result.matchedCount });
   } catch (error) {
-    console.error('Error actualizando la compra:', error);
+    console.error('Error actualizando la compra en ventas_realizadas:', error);
     response.status(500).json({ error: 'No fue posible actualizar la compra.' });
   }
 });

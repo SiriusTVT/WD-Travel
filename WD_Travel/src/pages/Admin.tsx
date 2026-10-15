@@ -94,11 +94,30 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     }
   }, [setBookings]);
 
+  const fetchQuotes = useCallback(async () => {
+    try {
+      const response = await fetch('/api/quotes');
+      if (response.ok) {
+        const quotesData: Booking[] = await response.json();
+        setBookings(currentBookings => {
+          const nonQuotes = currentBookings.filter(
+            b => !quotesData.some(q => q.id === b.id) && Boolean(b.purchaseDate)
+          );
+          return [...quotesData, ...nonQuotes];
+        });
+      }
+    } catch (error) {
+      console.error('Error al consultar cotizaciones pendientes:', error);
+    }
+  }, [setBookings]);
+
   useEffect(() => {
     if (activeView === 'purchases') {
       void fetchPurchases();
+    } else if (activeView === 'quotes') {
+      void fetchQuotes();
     }
-  }, [activeView, fetchPurchases]);
+  }, [activeView, fetchPurchases, fetchQuotes]);
 
   const [newBooking, setNewBooking] = useState({
     quoteDate: new Date().toISOString().split('T')[0],
@@ -352,14 +371,50 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     };
 
     if (editingQuote && editingBookingId) {
-      setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
-        ? { ...booking, ...quoteData }
-        : booking
-      ));
+      const updatedQuote: Booking = {
+        bookingCode: 'PENDIENTE',
+        airline: 'Por definir',
+        paymentMethod: 'PENDIENTE',
+        totalValue: 0,
+        paymentStatus: 'PENDIENTE',
+        paidAmount: 0,
+        ...existingBooking,
+        quoteDate: existingBooking?.quoteDate || newBooking.quoteDate,
+        ...quoteData,
+        purchaseDate: existingBooking?.purchaseDate || '',
+        id: editingBookingId
+      };
+
+      try {
+        setIsSaving(true);
+        const res = await fetch(`/api/quotes/${editingBookingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedQuote)
+        });
+
+        if (!res.ok) {
+          throw new Error('Error al actualizar la cotización en el servidor.');
+        }
+
+        setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
+          ? updatedQuote
+          : booking
+        ));
+      } catch (error) {
+        console.error('Error actualizando cotización en la base de datos:', error);
+        window.alert('No fue posible actualizar la cotización en la base de datos. Verifica tu conexión.');
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+
       setShowAddModal(false);
       setEditingBookingId(null);
       setEditingQuote(false);
       resetForm();
+      void fetchQuotes();
       return;
     }
 
@@ -419,18 +474,29 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
       }
     } else if (editingBookingId) {
       try {
-        await fetch(`/api/sales/${editingBookingId}`, {
+        setIsSaving(true);
+        const res = await fetch(`/api/sales/${editingBookingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(finalBooking)
         });
+
+        if (!res.ok) {
+          throw new Error('Error al actualizar la compra en el servidor.');
+        }
+
+        setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
+          ? finalBooking
+          : booking
+        ));
       } catch (error) {
         console.error('Error actualizando compra en base de datos:', error);
+        window.alert('No fue posible actualizar la compra en la base de datos. Verifica tu conexión.');
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
       }
-      setBookings(currentBookings => currentBookings.map(booking => booking.id === editingBookingId
-        ? finalBooking
-        : booking
-      ));
     } else {
       const created: Booking = {
         id: Date.now().toString(),
@@ -460,6 +526,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setActiveView(targetView);
     if (targetView === 'purchases') {
       void fetchPurchases();
+    } else if (targetView === 'quotes') {
+      void fetchQuotes();
     }
   };
 
@@ -537,7 +605,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           type="button"
           role="tab"
           aria-selected={activeView === 'quotes'}
-          onClick={() => setActiveView('quotes')}
+          onClick={() => {
+            setActiveView('quotes');
+            void fetchQuotes();
+          }}
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'quotes' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'quotes' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
         >
           Cotizaciones pendientes ({pendingQuotes.length})
