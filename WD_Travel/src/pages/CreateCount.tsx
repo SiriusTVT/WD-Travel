@@ -11,6 +11,8 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
   const [secret, setSecret] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<'admin' | 'advisor'>('advisor');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -69,6 +71,12 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
 
   const handleCreateAccount = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (password !== confirmPassword) {
+      setErrorMessage('Las contraseñas no coinciden.');
+      setSuccessMessage('');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage('');
     setSuccessMessage('');
@@ -91,6 +99,7 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
       setSuccessMessage(`Cuenta creada para ${result.email} con rol ${roleLabel}.`);
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
       setRole('advisor');
     } catch (error) {
       console.error('Error creando cuenta de usuario:', error);
@@ -146,7 +155,7 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
               <label htmlFor="create-account-password" style={{ display: 'block', margin: '16px 0 6px', color: '#374151', fontWeight: 700 }}>Contraseña</label>
               <input
                 id="create-account-password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 minLength={12}
                 maxLength={256}
@@ -155,6 +164,26 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
                 onChange={event => setPassword(event.target.value)}
                 style={{ width: '100%', padding: '11px', borderRadius: '8px' }}
               />
+              <label htmlFor="create-account-confirm-password" style={{ display: 'block', margin: '16px 0 6px', color: '#374151', fontWeight: 700 }}>Confirmar contraseña</label>
+              <input
+                id="create-account-confirm-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={256}
+                required
+                value={confirmPassword}
+                onChange={event => setConfirmPassword(event.target.value)}
+                style={{ width: '100%', padding: '11px', borderRadius: '8px' }}
+              />
+              <button
+                type="button"
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword(current => !current)}
+                style={{ marginTop: '8px', padding: '6px 0', border: 0, color: '#2d60a8', background: 'transparent', fontWeight: 700, cursor: 'pointer' }}
+              >
+                {showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              </button>
               <label htmlFor="create-account-role" style={{ display: 'block', margin: '16px 0 6px', color: '#374151', fontWeight: 700 }}>Rol</label>
               <select
                 id="create-account-role"
