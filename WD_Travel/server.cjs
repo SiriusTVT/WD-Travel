@@ -406,6 +406,16 @@ async function sendQuoteNotification(quote) {
     ? 'Ida y vuelta'
     : 'Solo ida';
   const service = quote.isPackage ? 'Paquete' : 'Tiquete';
+  const packageTypeLabels = {
+    'paquetes-migratorios': 'Paquete migratorio',
+    'paquetes-hotel-vuelos': 'Paquetes de hotel y vuelos',
+    'paquetes-laborales': 'Paquetes con oferta laboral',
+    'asistencias-viaje': 'Asistencias de viaje'
+  };
+  const packageTypeLabel = typeof quote.packageType === 'string' &&
+    Object.prototype.hasOwnProperty.call(packageTypeLabels, quote.packageType)
+    ? packageTypeLabels[quote.packageType]
+    : '';
   const details = [
     { label: 'Nombre', value: passengerName },
     { label: 'Teléfono / WhatsApp', value: quote.phone },
@@ -421,7 +431,13 @@ async function sendQuoteNotification(quote) {
     ...(childCount > 0 && childAges
       ? [{ label: 'Edades de los niños', value: childAges }]
       : []),
-    { label: 'Servicio solicitado', value: service }
+    { label: 'Servicio solicitado', value: service },
+    ...(quote.isPackage && packageTypeLabel
+      ? [{ label: 'Tipo de paquete', value: packageTypeLabel }]
+      : []),
+    ...(quote.isPackage && typeof quote.packageName === 'string' && quote.packageName.trim()
+      ? [{ label: 'Paquete de interés', value: quote.packageName.trim() }]
+      : [])
   ].filter(detail => detail.value !== undefined && detail.value !== null && detail.value !== '');
 
   const text = [

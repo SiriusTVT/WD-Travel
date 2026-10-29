@@ -1,3 +1,5 @@
+import type { PackageType } from './packageTypes';
+
 export interface Passenger {
   firstName?: string;
   lastName?: string;
@@ -26,6 +28,8 @@ export interface Booking {
   childAges?: number[];
   isTicket: boolean;
   isPackage: boolean;
+  packageType?: PackageType;
+  packageName?: string;
   airline: string;
   paymentMethod: string;
   totalValue: number;

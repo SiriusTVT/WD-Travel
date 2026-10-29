@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
 import { CallingCodeSelector } from '../components/CallingCodeSelector.tsx';
 import type { Booking } from '../data/mockData';
+import { PACKAGE_TYPES, type PackageType } from '../data/packageTypes';
 import {
   getLocalDateString,
   clampIntegerInput,
@@ -42,7 +43,7 @@ interface TravelPackage {
 }
 
 interface PackageCategory {
-  id: string;
+  id: PackageType;
   title: string;
   description: string;
   packages: TravelPackage[];
@@ -297,6 +298,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [returnDate, setReturnDate] = useState('');
   const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ROUND_TRIP');
   const [bookingType, setBookingType] = useState<BookingType>('TIQUETE');
+  const [packageType, setPackageType] = useState<PackageType | ''>('');
+  const [packageName, setPackageName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [documentType, setDocumentType] = useState('Cédula de ciudadanía');
@@ -342,10 +345,26 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const selectPackage = (destination?: string) => {
+  const selectPackage = (category: PackageCategory, travelPackage: TravelPackage) => {
     setBookingType('PAQUETE');
-    setDestination(destination ?? '');
+    setPackageType(category.id);
+    setPackageName(travelPackage.title);
+    setDestination(travelPackage.formDestination ?? '');
     scrollToForm();
+  };
+
+  const handlePackageTypeChange = (nextType: PackageType | '') => {
+    if (packageName) setDestination('');
+    setPackageType(nextType);
+    setPackageName('');
+  };
+
+  const handlePackageNameChange = (nextName: string) => {
+    setPackageName(nextName);
+    const selectedPackage = packageCategories
+      .find(category => category.id === packageType)
+      ?.packages.find(travelPackage => travelPackage.title === nextName);
+    setDestination(selectedPackage?.formDestination ?? '');
   };
 
   useEffect(() => {
@@ -442,6 +461,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       childAges: childAges.slice(0, normalizedChildCount).map(Number),
       isTicket: bookingType === 'TIQUETE',
       isPackage: bookingType === 'PAQUETE',
+      packageType: bookingType === 'PAQUETE' ? packageType || undefined : undefined,
+      packageName: bookingType === 'PAQUETE' ? packageName || undefined : undefined,
       airline: 'Por definir',
       paymentMethod: 'PENDIENTE',
       totalValue: 0,
@@ -648,7 +669,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                       <ul className="package-includes">
                         {travelPackage.includes.map(item => <li key={item}>{item}</li>)}
                       </ul>
-                      <button type="button" className="package-button" onClick={() => selectPackage(travelPackage.formDestination)}>
+                      <button type="button" className="package-button" onClick={() => selectPackage(category, travelPackage)}>
                         {travelPackage.actionText ?? 'Quiero cotizar este paquete'}
                       </button>
                     </div>
@@ -837,11 +858,52 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de servicio:</label>
-                <select required value={bookingType} onChange={e => setBookingType(e.target.value as BookingType)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}>
+                <select required value={bookingType} onChange={e => {
+                  const nextBookingType = e.target.value as BookingType;
+                  setBookingType(nextBookingType);
+                  if (nextBookingType === 'TIQUETE') {
+                    setPackageType('');
+                    setPackageName('');
+                  }
+                }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}>
                   <option value="TIQUETE">TIQUETE</option>
                   <option value="PAQUETE">PAQUETE</option>
                 </select>
               </div>
+
+              {bookingType === 'PAQUETE' && (
+                <>
+                  <div>
+                    <label htmlFor="package-type" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de paquete:</label>
+                    <select
+                      id="package-type"
+                      required
+                      value={packageType}
+                      onChange={e => handlePackageTypeChange(e.target.value as PackageType | '')}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
+                    >
+                      <option value="">Selecciona el tipo de paquete</option>
+                      {PACKAGE_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+                    </select>
+                  </div>
+                  {packageType && (
+                    <div>
+                      <label htmlFor="package-name" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Paquete de interés (opcional):</label>
+                      <select
+                        id="package-name"
+                        value={packageName}
+                        onChange={e => handlePackageNameChange(e.target.value)}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
+                      >
+                        <option value="">No tengo uno específico</option>
+                        {packageCategories.find(category => category.id === packageType)?.packages.map(travelPackage => (
+                          <option key={travelPackage.title} value={travelPackage.title}>{travelPackage.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
 
               <button
                 type="submit"

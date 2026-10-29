@@ -3,6 +3,7 @@ import { type Booking } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { CallingCodeSelector } from '../components/CallingCodeSelector';
 import { isValidCallingCode } from '../data/callingCodes';
+import { getPackageTypeLabel, PACKAGE_TYPES, type PackageType } from '../data/packageTypes';
 import { formatDisplayDate } from '../formatDate';
 import {
   clampIntegerInput,
@@ -140,6 +141,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     childAges: [] as (number | '')[],
     isTicket: false,
     isPackage: true,
+    packageType: '' as PackageType | '',
+    packageName: '',
     airline: '',
     paymentMethod: 'TRANSFERENCIA',
     totalValue: 0 as number | '',
@@ -168,6 +171,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       childAges: [],
       isTicket: false,
       isPackage: true,
+      packageType: '' as PackageType | '',
+      packageName: '',
       airline: '',
       paymentMethod: 'TRANSFERENCIA',
       totalValue: 0 as number | '',
@@ -207,6 +212,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       ),
       isTicket: booking.isTicket,
       isPackage: booking.isPackage,
+      packageType: booking.packageType ?? '',
+      packageName: booking.packageName ?? '',
       airline: booking.airline,
       paymentMethod: booking.paymentMethod,
       totalValue: booking.totalValue,
@@ -376,6 +383,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       childAges: newBooking.childAges.map(Number),
       isTicket: newBooking.isTicket,
       isPackage: newBooking.isPackage,
+      packageType: newBooking.isPackage ? newBooking.packageType || undefined : undefined,
+      packageName: newBooking.isPackage ? newBooking.packageName.trim() || undefined : undefined,
       passengers: editingBookingId && existingBooking?.passengers.length
         ? [primaryPassenger, ...existingBooking.passengers.slice(1)]
         : [primaryPassenger]
@@ -830,7 +839,15 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 <td style={{ padding: '14px' }}>{(b.tripType ?? (b.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'IDA Y VUELTA' : 'SOLO IDA'}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
                 <td style={{ padding: '14px' }}>{b.returnDate ? formatDisplayDate(b.returnDate) : '—'}</td>
-                <td style={{ padding: '14px' }}>{b.isPackage ? 'PAQUETE' : 'TIQUETE'}</td>
+                <td style={{ padding: '14px' }}>
+                  {b.isPackage ? 'PAQUETE' : 'TIQUETE'}
+                  {b.isPackage && b.packageType && (
+                    <div style={{ marginTop: '4px', color: '#4b5563' }}>
+                      {getPackageTypeLabel(b.packageType)}
+                      {b.packageName && <div>{b.packageName}</div>}
+                    </div>
+                  )}
+                </td>
                 <td style={{ padding: '14px' }}>
                   {b.adultCount ?? 'Sin dato'} adulto(s), {b.childCount ?? 'Sin dato'} niño(s)
                   {(b.childAges?.length ?? 0) > 0 && (
@@ -1086,13 +1103,52 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 <select
                   required
                   value={newBooking.isPackage ? 'PAQUETE' : 'TIQUETE'}
-                  onChange={e => setNewBooking({ ...newBooking, isPackage: e.target.value === 'PAQUETE', isTicket: e.target.value === 'TIQUETE' })}
+                  onChange={e => setNewBooking({
+                    ...newBooking,
+                    isPackage: e.target.value === 'PAQUETE',
+                    isTicket: e.target.value === 'TIQUETE',
+                    packageType: e.target.value === 'TIQUETE' ? '' : newBooking.packageType,
+                    packageName: e.target.value === 'TIQUETE' ? '' : newBooking.packageName
+                  })}
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                 >
                   <option value="TIQUETE">TIQUETE</option>
                   <option value="PAQUETE">PAQUETE</option>
                 </select>
               </div>
+
+              {newBooking.isPackage && (
+                <>
+                  <div>
+                    <label htmlFor="admin-package-type" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de paquete:</label>
+                    <select
+                      id="admin-package-type"
+                      required
+                      value={newBooking.packageType}
+                      onChange={e => setNewBooking({
+                        ...newBooking,
+                        packageType: e.target.value as PackageType | '',
+                        packageName: ''
+                      })}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">Selecciona el tipo de paquete</option>
+                      {PACKAGE_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="admin-package-name" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Paquete de interés (opcional):</label>
+                    <input
+                      id="admin-package-name"
+                      type="text"
+                      maxLength={120}
+                      value={newBooking.packageName}
+                      onChange={e => setNewBooking({ ...newBooking, packageName: e.target.value })}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Origen */}
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
