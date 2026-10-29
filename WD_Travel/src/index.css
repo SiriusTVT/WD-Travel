@@ -820,24 +820,6 @@ body {
   display: block;
 }
 
-/* Iconos decorativos flotantes (tema de viaje) */
-.travel-decor {
-  position: fixed;
-  z-index: 0;
-  pointer-events: none;
-  user-select: none;
-  opacity: 0.85;
-  filter: drop-shadow(0 4px 10px rgba(16, 47, 89, 0.10));
-  animation: wander 16s ease-in-out infinite alternate;
-}
-@keyframes wander {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(28px, -20px, 0); }
-}
-@media (max-width: 900px) {
-  .travel-decor { display: none; }
-}
-
 /* Títulos de sección con subrayado dorado */
 .wd-heading-accent {
   position: relative;
@@ -914,38 +896,6 @@ body {
   filter: blur(10px);
   z-index: -1;
 }
-
-/* Esquina decorativa en tarjetas de paquete */
-.package-card {
-  position: relative;
-}
-.package-card::before {
-  content: '✈';
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  font-size: 1.5rem;
-  opacity: 0.10;
-  pointer-events: none;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-.package-card:hover::before {
-  opacity: 0.17;
-  transform: scale(1.15) rotate(6deg);
-}
-
-/* Sellos decorativos en la tarjeta de cotización */
-.quote-card::before,
-.quote-card::after {
-  content: '✈';
-  position: absolute;
-  font-size: 2.2rem;
-  opacity: 0.11;
-  pointer-events: none;
-}
-.quote-card::before { top: 12px; left: 16px; }
-.quote-card::after { bottom: 12px; right: 16px; transform: rotate(180deg); }
 
 /* Cierre con estilo de billete */
 .closing-cta {

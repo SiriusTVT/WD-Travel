@@ -68,34 +68,21 @@ const travelPackages = [
 
 const travelServices = [
   {
-    icon: '✈️',
     title: 'Paquetes vacacionales a medida',
     description: 'Diseñamos escapadas nacionales e internacionales con vuelos, hospedajes verificados y actividades exclusivas organizadas para que solo te preocupes por disfrutar.'
   },
   {
-    icon: '🛡️',
     title: 'Asistencia al viajero y seguros globales',
     description: 'Cobertura médica internacional, protección de equipaje y soporte ante imprevistos para garantizar tu bienestar y el de tu familia en cualquier rincón del mundo.'
   },
   {
-    icon: '🗂️',
     title: 'Asesoría en visados y trámites migratorios',
     description: 'Acompañamiento paso a paso en requisitos de entrada, documentación y gestión consular para que tus planes de viaje o reubicación avancen sin contratiempos.'
   },
   {
-    icon: '🚐',
     title: 'Logística y traslados personalizados',
     description: 'Conexiones aéreas estratégicas, traslados privados y reservas coordinadas al milímetro para que tu itinerario fluya sin esperas innecesarias.'
   }
-];
-
-const travelIcons = [
-  { emoji: '✈️', style: { left: '4%', top: '10%', fontSize: '2.5rem', color: 'var(--wd-gold)', animationDelay: '0s' } },
-  { emoji: '🧳', style: { right: '6%', top: '28%', fontSize: '2.1rem', color: 'var(--wd-blue-bright)', animationDelay: '5s' } },
-  { emoji: '🌍', style: { left: '5%', bottom: '20%', fontSize: '2.4rem', color: 'rgba(244, 189, 36, 0.85)', animationDelay: '10s' } },
-  { emoji: '🗺️', style: { right: '9%', bottom: '28%', fontSize: '2rem', color: 'var(--wd-blue)', animationDelay: '2s' } },
-  { emoji: '🧭', style: { left: '6%', top: '52%', fontSize: '1.9rem', color: 'var(--wd-gold-dark)', animationDelay: '7s' } },
-  { emoji: '⛵', style: { right: '5%', top: '50%', fontSize: '2.2rem', color: 'var(--wd-blue-bright)', animationDelay: '12s' } },
 ];
 
 const SectionDivider = ({ fill = 'var(--wd-sky)' }: { fill?: string }) => (
@@ -307,9 +294,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      {travelIcons.map((icon, i) => (
-        <span key={i} className="travel-decor" aria-hidden="true" style={icon.style}>{icon.emoji}</span>
-      ))}
       <section className="hero-section" style={{
         color: '#ffffff',
         padding: '80px 20px',
@@ -471,7 +455,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         <div className="services-grid">
           {travelServices.map(service => (
             <article className="service-card" key={service.title}>
-              <span className="service-icon" aria-hidden="true">{service.icon}</span>
               <h3>{service.title}</h3>
               <p>{service.description}</p>
             </article>
