@@ -13,16 +13,22 @@ En Render, configura estas variables de entorno:
 - **Build Command:** `npm run build`
 - **Start Command:** `npm start`
 - `MONGO_KEY`: cadena de conexión de MongoDB.
-- `ADMIN_ACCESS_CODE`: código secreto para iniciar sesión como administrador. Usa un código largo, único y difícil de adivinar; no uses `wdtraveladmin` como código real.
+- `ADMIN_BOOTSTRAP_EMAIL`: correo de la cuenta inicial de administrador.
+- `ADMIN_BOOTSTRAP_PASSWORD`: contraseña inicial de esa cuenta; se guarda como hash scrypt, no como texto plano.
+- `ADMIN_SESSION_SECRET`: secreto aleatorio largo para firmar las sesiones.
 - `RESEND_API_KEY`: clave API de Resend.
 - `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
 - `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.
 
-La página principal conserva el formulario público de cotización y no muestra controles de acceso administrativo. Para iniciar sesión, abre directamente `https://wd-travel.onrender.com/wdtraveladmin` e ingresa el valor configurado en `ADMIN_ACCESS_CODE`. La sesión se guarda en una cookie `HttpOnly` por un máximo de 8 horas; las consultas y modificaciones de cotizaciones y ventas requieren esa sesión. La creación pública de cotizaciones sigue disponible.
+Al iniciar el servidor, se crea la cuenta inicial en la colección MongoDB `users` si no existe; su documento contiene `email`, `passwordHash`, `role` (`admin` o `advisor`) y `createdAt`. Si la cuenta inicial ya existe, el arranque no reemplaza su contraseña. La página principal conserva el formulario público de cotización y no muestra controles de acceso administrativo. Para iniciar sesión, abre directamente `https://wd-travel.onrender.com/wdtraveladmin`. La sesión usa una cookie `HttpOnly` firmada que vence en 8 horas. Hay límite de intentos fallidos de inicio de sesión.
 
-Para desarrollo local, configura `MONGO_KEY` y `ADMIN_ACCESS_CODE` en el entorno e inicia
-el servidor con `npm start` después de construir el frontend. En PowerShell:
-`$env:MONGO_KEY = "..."`; `$env:ADMIN_ACCESS_CODE = "..."`; `npm start`. Vite redirige
+Ambos roles pueden consultar y editar cotizaciones y registrar/editar compras. Solo `admin` puede consultar ventas y eliminar cotizaciones o compras; esas restricciones se verifican en el servidor además de ocultar las acciones en la interfaz. La creación pública de cotizaciones sigue disponible.
+
+Para desarrollo local, configura `MONGO_KEY`, `ADMIN_BOOTSTRAP_EMAIL`,
+`ADMIN_BOOTSTRAP_PASSWORD` y `ADMIN_SESSION_SECRET` en el entorno e inicia el servidor con
+`npm start` después de construir el frontend. En PowerShell:
+`$env:MONGO_KEY = "..."`; `$env:ADMIN_BOOTSTRAP_EMAIL = "..."`;
+`$env:ADMIN_BOOTSTRAP_PASSWORD = "..."`; `$env:ADMIN_SESSION_SECRET = "..."`; `npm start`. Vite redirige
 `/api` al servidor local en el puerto 3000.
 También debes configurar las tres variables de Resend anteriores; el remitente debe estar
 verificado en Resend. Si falta alguna o Resend rechaza/falla el envío, la cotización se

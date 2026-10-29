@@ -56,9 +56,10 @@ const getBookingRoute = (booking: Pick<Booking, 'route' | 'tripType' | 'returnDa
 interface AdminProps {
   bookings: Booking[];
   setBookings: React.Dispatch<React.SetStateAction<Booking[]>>;
+  role: 'admin' | 'advisor';
 }
 
-export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
+export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => {
   const [activeView, setActiveView] = useState<'quotes' | 'purchases' | 'sales'>('quotes');
   const [salesPeriod, setSalesPeriod] = useState<'month' | 'year'>('month');
   const [selectedSalesMonth, setSelectedSalesMonth] = useState(() => getLocalDateString().slice(0, 7));
@@ -76,6 +77,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchPurchases = useCallback(async () => {
+    if (role !== 'admin') return;
+
     try {
       const response = await fetch('/api/sales');
       if (response.ok) {
@@ -92,7 +95,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     } finally {
       setIsLoadingPurchases(false);
     }
-  }, [setBookings]);
+  }, [role, setBookings]);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -117,7 +120,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     } else if (activeView === 'quotes') {
       void fetchQuotes();
     }
-  }, [activeView, fetchPurchases, fetchQuotes]);
+  }, [activeView, fetchPurchases, fetchQuotes, role]);
 
   const [newBooking, setNewBooking] = useState({
     quoteDate: new Date().toISOString().split('T')[0],
@@ -220,17 +223,25 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
   };
 
   const handleDeleteClick = async (booking: Booking) => {
+    if (role !== 'admin') return;
+
     const shouldDelete = window.confirm(`¿Deseas eliminar el registro de ${booking.passenger}?`);
     if (!shouldDelete) return;
 
     try {
+      let response: Response;
       if (booking.purchaseDate) {
-        await fetch(`/api/sales/${booking.id}`, { method: 'DELETE' });
+        response = await fetch(`/api/sales/${booking.id}`, { method: 'DELETE' });
       } else {
-        await fetch(`/api/quotes/${booking.id}`, { method: 'DELETE' });
+        response = await fetch(`/api/quotes/${booking.id}`, { method: 'DELETE' });
+      }
+      if (!response.ok) {
+        throw new Error('El servidor rechazó la eliminación del registro.');
       }
     } catch (error) {
       console.error('Error eliminando registro en la base de datos:', error);
+      window.alert('No fue posible eliminar el registro. Verifica tus permisos e inténtalo nuevamente.');
+      return;
     }
 
     setBookings(currentBookings => currentBookings.filter(currentBooking => currentBooking.id !== booking.id));
@@ -522,7 +533,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
     setEditingQuote(false);
     resetForm();
 
-    const targetView = completingQuote || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
+    const requestedView = completingQuote || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
+    const targetView = role === 'admin' ? requestedView : 'quotes';
     setActiveView(targetView);
     if (targetView === 'purchases') {
       void fetchPurchases();
@@ -613,7 +625,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         >
           Cotizaciones pendientes ({pendingQuotes.length})
         </button>
-        <button
+        {role === 'admin' && <button
           type="button"
           role="tab"
           aria-selected={activeView === 'purchases'}
@@ -625,8 +637,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
         >
           <span>Compras registradas ({purchases.length})</span>
           {isLoadingPurchases && <span style={{ fontSize: '0.8rem' }}>🔄</span>}
-        </button>
-        <button
+        </button>}
+        {role === 'admin' && <button
           type="button"
           role="tab"
           aria-selected={activeView === 'sales'}
@@ -634,7 +646,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'sales' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'sales' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
         >
           Resumen de ventas
-        </button>
+        </button>}
       </div>
 
       {/* Tabla estilo Excel */}
@@ -861,12 +873,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings }) => {
                   >
                     Editar
                   </button>
-                  <button
-                    onClick={() => handleDeleteClick(b)}
-                    style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    Eliminar
-                  </button>
+                  {role === 'admin' && (
+                    <button
+                      onClick={() => void handleDeleteClick(b)}
+                      style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

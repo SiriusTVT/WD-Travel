@@ -9,7 +9,7 @@ const ADMIN_PATH = '/wdtraveladmin';
 
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<'admin' | 'advisor' | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const isAdminRoute = pathname.replace(/\/+$/, '') === ADMIN_PATH;
 
@@ -18,26 +18,28 @@ function App() {
     setPathname(window.location.pathname);
   }, []);
 
-  const loadAdminData = useCallback(async () => {
-    const [quotesResponse, salesResponse] = await Promise.all([
-      fetch('/api/quotes'),
-      fetch('/api/sales')
-    ]);
-
-    if (!quotesResponse.ok || !salesResponse.ok) {
-      throw new Error('No fue posible cargar los datos administrativos desde el servidor.');
+  const loadAdminData = useCallback(async (role: 'admin' | 'advisor') => {
+    const quotesResponse = await fetch('/api/quotes');
+    if (!quotesResponse.ok) {
+      throw new Error('No fue posible cargar las cotizaciones desde el servidor.');
     }
 
-    const [quotes, sales]: [Booking[], Booking[]] = await Promise.all([
-      quotesResponse.json(),
-      salesResponse.json()
-    ]);
+    const quotes: Booking[] = await quotesResponse.json();
+    let sales: Booking[] = [];
+    if (role === 'admin') {
+      const salesResponse = await fetch('/api/sales');
+      if (!salesResponse.ok) {
+        throw new Error('No fue posible cargar las ventas desde el servidor.');
+      }
+      sales = await salesResponse.json();
+    }
+
     setBookings([...quotes, ...sales]);
   }, []);
 
-  const handleAdminLogin = useCallback(async () => {
-    await loadAdminData();
-    setIsAdmin(true);
+  const handleAdminLogin = useCallback(async (role: 'admin' | 'advisor') => {
+    await loadAdminData(role);
+    setAdminRole(role);
   }, [loadAdminData]);
 
   const handleAdminLogout = useCallback(async () => {
@@ -45,7 +47,7 @@ function App() {
     if (!response.ok) {
       throw new Error('No fue posible cerrar la sesión administrativa.');
     }
-    setIsAdmin(false);
+    setAdminRole(null);
     setBookings([]);
     navigate('/');
   }, [navigate]);
@@ -64,15 +66,19 @@ function App() {
       try {
         const response = await fetch('/api/admin/session');
         if (response.status === 401) {
-          if (isMounted) setIsAdmin(false);
+          if (isMounted) setAdminRole(null);
           return;
         }
         if (!response.ok) {
           throw new Error('No fue posible comprobar la sesión administrativa.');
         }
 
-        await loadAdminData();
-        if (isMounted) setIsAdmin(true);
+        const session: { role?: 'admin' | 'advisor' } = await response.json();
+        if (session.role !== 'admin' && session.role !== 'advisor') {
+          throw new Error('El servidor devolvió un rol de usuario inválido.');
+        }
+        await loadAdminData(session.role);
+        if (isMounted) setAdminRole(session.role);
       } catch (error) {
         console.error('No fue posible restaurar la sesión administrativa:', error);
       }
@@ -84,16 +90,7 @@ function App() {
     };
   }, [isAdminRoute, loadAdminData]);
 
-  if (isAdminRoute && !isAdmin) {
-    return (
-      <AdminLogin
-        onLogin={handleAdminLogin}
-        onBackToSite={() => navigate('/')}
-      />
-    );
-  }
-
-  if (isAdminRoute) {
+  if (isAdminRoute && adminRole) {
     return (
       <div style={{ backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
         <Navbar
@@ -101,8 +98,17 @@ function App() {
           onGoHome={() => navigate('/')}
           onAdminLogout={handleAdminLogout}
         />
-        <Admin bookings={bookings} setBookings={setBookings} />
+        <Admin bookings={bookings} setBookings={setBookings} role={adminRole} />
       </div>
+    );
+  }
+
+  if (isAdminRoute) {
+    return (
+      <AdminLogin
+        onLogin={handleAdminLogin}
+        onBackToSite={() => navigate('/')}
+      />
     );
   }
 

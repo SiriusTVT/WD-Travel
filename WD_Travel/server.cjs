@@ -1,13 +1,24 @@
 const path = require('node:path');
-const { createHash, createHmac, timingSafeEqual } = require('node:crypto');
+const {
+  createHmac,
+  randomBytes,
+  scrypt,
+  timingSafeEqual
+} = require('node:crypto');
+const { promisify } = require('node:util');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGO_KEY = process.env.MONGO_KEY;
-const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE;
+const ADMIN_BOOTSTRAP_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
+const ADMIN_BOOTSTRAP_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || randomBytes(32).toString('hex');
 const ADMIN_SESSION_COOKIE = 'wdtravel_admin';
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
+const PASSWORD_HASH_LENGTH = 64;
+const PASSWORD_SALT_LENGTH = 16;
+const scryptAsync = promisify(scrypt);
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 const QUOTE_NOTIFICATION_EMAIL = process.env.QUOTE_NOTIFICATION_EMAIL;
@@ -20,53 +31,88 @@ const app = express();
 const mongoClient = new MongoClient(MONGO_KEY);
 let quotesCollection;
 let salesCollection;
+let usersCollection;
 
 app.use(express.json({ limit: '50kb' }));
+app.set('trust proxy', 1);
 
-function getAdminSessionSignature(timestamp) {
-  return createHmac('sha256', ADMIN_ACCESS_CODE)
-    .update(timestamp)
+function getAdminSessionSignature(payload) {
+  return createHmac('sha256', ADMIN_SESSION_SECRET)
+    .update(payload)
     .digest('hex');
 }
 
-function isAdminSessionValid(request) {
-  if (!ADMIN_ACCESS_CODE) return false;
-
+function getAdminSession(request) {
   const cookie = request.headers.cookie
     ?.split(';')
     .map(value => value.trim())
     .find(value => value.startsWith(`${ADMIN_SESSION_COOKIE}=`));
   const session = cookie?.slice(ADMIN_SESSION_COOKIE.length + 1);
-  const [timestamp, signature] = session?.split('.') || [];
+  const [payload, signature] = session?.split('.') || [];
 
-  if (!timestamp || !/^\d+$/.test(timestamp) || !signature || !/^[a-f\d]{64}$/i.test(signature)) {
-    return false;
+  if (!payload || !signature || !/^[a-f\d]{64}$/i.test(signature)) {
+    return null;
   }
 
-  const issuedAt = Number(timestamp);
-  const now = Math.floor(Date.now() / 1000);
-  if (issuedAt > now || now - issuedAt > ADMIN_SESSION_TTL_SECONDS) {
-    return false;
-  }
-
-  const expected = Buffer.from(getAdminSessionSignature(timestamp), 'hex');
+  const expected = Buffer.from(getAdminSessionSignature(payload), 'hex');
   const provided = Buffer.from(signature, 'hex');
-  return timingSafeEqual(expected, provided);
-}
+  if (!timingSafeEqual(expected, provided)) return null;
 
-function requireAdmin(request, response, next) {
-  if (!ADMIN_ACCESS_CODE) {
-    response.status(503).json({ error: 'El acceso administrativo no está configurado.' });
-    return;
+  let sessionData;
+  try {
+    sessionData = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch {
+    return null;
   }
 
-  if (!isAdminSessionValid(request)) {
-    response.status(401).json({ error: 'Se requiere una sesión administrativa válida.' });
-    return;
+  if (
+    typeof sessionData.email !== 'string'
+    || !Number.isSafeInteger(sessionData.issuedAt)
+  ) {
+    return null;
   }
 
-  next();
+  const now = Math.floor(Date.now() / 1000);
+  if (sessionData.issuedAt > now || now - sessionData.issuedAt > ADMIN_SESSION_TTL_SECONDS) {
+    return null;
+  }
+
+  return sessionData;
 }
+
+function requireRoles(...allowedRoles) {
+  return async (request, response, next) => {
+    const session = getAdminSession(request);
+    if (!session) {
+      response.status(401).json({ error: 'Se requiere una sesión válida.' });
+      return;
+    }
+
+    try {
+      const user = await usersCollection.findOne(
+        { email: session.email },
+        { projection: { email: 1, role: 1 } }
+      );
+      if (!user || !['admin', 'advisor'].includes(user.role)) {
+        response.status(401).json({ error: 'La cuenta no está autorizada.' });
+        return;
+      }
+
+      if (!allowedRoles.includes(user.role)) {
+        response.status(403).json({ error: 'Tu rol no tiene permiso para esta acción.' });
+        return;
+      }
+
+      request.authUser = { email: user.email, role: user.role };
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+const requireAdmin = requireRoles('admin', 'advisor');
+const requireAdministrator = requireRoles('admin');
 
 function getSecureCookieAttribute(request) {
   const isHttps = process.env.NODE_ENV === 'production'
@@ -74,36 +120,102 @@ function getSecureCookieAttribute(request) {
   return isHttps ? '; Secure' : '';
 }
 
-app.post('/api/admin/login', (request, response) => {
-  if (!ADMIN_ACCESS_CODE) {
-    response.status(503).json({ error: 'El acceso administrativo no está configurado.' });
+async function hashPassword(password) {
+  const salt = randomBytes(PASSWORD_SALT_LENGTH);
+  const derivedKey = await scryptAsync(password, salt, PASSWORD_HASH_LENGTH);
+  return `${salt.toString('hex')}:${derivedKey.toString('hex')}`;
+}
+
+async function verifyPassword(password, passwordHash) {
+  const [saltHex, hashHex] = String(passwordHash).split(':');
+  if (
+    !/^[a-f\d]{32}$/i.test(saltHex || '')
+    || !/^[a-f\d]{128}$/i.test(hashHex || '')
+  ) {
+    return false;
+  }
+
+  const salt = Buffer.from(saltHex, 'hex');
+  const expected = Buffer.from(hashHex, 'hex');
+  const actual = await scryptAsync(password, salt, PASSWORD_HASH_LENGTH);
+  return timingSafeEqual(expected, actual);
+}
+
+const loginAttempts = new Map();
+const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+
+function isLoginRateLimited(ipAddress) {
+  const attempts = loginAttempts.get(ipAddress);
+  if (!attempts) return false;
+
+  if (Date.now() - attempts.startedAt >= LOGIN_ATTEMPT_WINDOW_MS) {
+    loginAttempts.delete(ipAddress);
+    return false;
+  }
+
+  return attempts.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+function recordFailedLogin(ipAddress) {
+  const current = loginAttempts.get(ipAddress);
+  if (!current || Date.now() - current.startedAt >= LOGIN_ATTEMPT_WINDOW_MS) {
+    loginAttempts.set(ipAddress, { startedAt: Date.now(), count: 1 });
+    return;
+  }
+  current.count += 1;
+}
+
+app.post('/api/admin/login', async (request, response, next) => {
+  const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
+  if (isLoginRateLimited(ipAddress)) {
+    response.status(429).json({ error: 'Demasiados intentos. Espera 15 minutos e inténtalo nuevamente.' });
     return;
   }
 
-  const submittedCode = request.body?.code;
-  if (typeof submittedCode !== 'string') {
-    response.status(400).json({ error: 'Ingresa el código de acceso.' });
+  const email = typeof request.body?.email === 'string'
+    ? request.body.email.trim().toLowerCase()
+    : '';
+  const password = request.body?.password;
+  if (!email || typeof password !== 'string' || password.length === 0) {
+    response.status(400).json({ error: 'Ingresa el correo y la contraseña.' });
     return;
   }
 
-  const expectedCodeHash = createHash('sha256').update(ADMIN_ACCESS_CODE).digest();
-  const submittedCodeHash = createHash('sha256').update(submittedCode).digest();
-  if (!timingSafeEqual(expectedCodeHash, submittedCodeHash)) {
-    response.status(401).json({ error: 'El código de acceso no es válido.' });
-    return;
-  }
+  try {
+    const user = await usersCollection.findOne({ email });
+    if (typeof password === 'string' && password.length > 256) {
+      recordFailedLogin(ipAddress);
+      response.status(401).json({ error: 'Correo o contraseña incorrectos.' });
+      return;
+    }
+    const validPassword = user
+      ? await verifyPassword(password, user.passwordHash)
+      : await verifyPassword(password, '00000000000000000000000000000000:' + '0'.repeat(128));
+    if (!user || !validPassword || !['admin', 'advisor'].includes(user.role)) {
+      recordFailedLogin(ipAddress);
+      response.status(401).json({ error: 'Correo o contraseña incorrectos.' });
+      return;
+    }
 
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const secure = getSecureCookieAttribute(request);
-  response.setHeader(
-    'Set-Cookie',
-    `${ADMIN_SESSION_COOKIE}=${timestamp}.${getAdminSessionSignature(timestamp)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${secure}`
-  );
-  response.json({ authenticated: true });
+    loginAttempts.delete(ipAddress);
+    const payload = Buffer.from(JSON.stringify({
+      email: user.email,
+      issuedAt: Math.floor(Date.now() / 1000)
+    })).toString('base64url');
+    const secure = getSecureCookieAttribute(request);
+    response.setHeader(
+      'Set-Cookie',
+      `${ADMIN_SESSION_COOKIE}=${payload}.${getAdminSessionSignature(payload)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${secure}`
+    );
+    response.json({ authenticated: true, role: user.role });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/admin/session', requireAdmin, (request, response) => {
-  response.json({ authenticated: true });
+  response.json({ authenticated: true, role: request.authUser.role });
 });
 
 app.post('/api/admin/logout', (request, response) => {
@@ -113,6 +225,43 @@ app.post('/api/admin/logout', (request, response) => {
     `${ADMIN_SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`
   );
   response.json({ authenticated: false });
+});
+
+app.post('/api/admin/users', requireAdministrator, async (request, response) => {
+  const email = typeof request.body?.email === 'string'
+    ? request.body.email.trim().toLowerCase()
+    : '';
+  const password = request.body?.password;
+  const role = request.body?.role;
+
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    || typeof password !== 'string'
+    || password.length < 12
+    || !['admin', 'advisor'].includes(role)
+  ) {
+    response.status(400).json({
+      error: 'Ingresa un correo válido, una contraseña de al menos 12 caracteres y un rol válido.'
+    });
+    return;
+  }
+
+  try {
+    const result = await usersCollection.insertOne({
+      email,
+      passwordHash: await hashPassword(password),
+      role,
+      createdAt: new Date()
+    });
+    response.status(201).json({ created: true, id: result.insertedId.toString(), email, role });
+  } catch (error) {
+    if (error.code === 11000) {
+      response.status(409).json({ error: 'Ya existe una cuenta con ese correo.' });
+      return;
+    }
+    console.error('Error creando usuario administrativo:', error);
+    response.status(500).json({ error: 'No fue posible crear el usuario.' });
+  }
 });
 
 function escapeHtml(value) {
@@ -310,7 +459,7 @@ app.put('/api/quotes/:id', requireAdmin, async (request, response) => {
 });
 
 // Eliminar cotización
-app.delete('/api/quotes/:id', requireAdmin, async (request, response) => {
+app.delete('/api/quotes/:id', requireAdministrator, async (request, response) => {
   try {
     const id = request.params.id;
     await quotesCollection.deleteMany(buildIdFilter(id));
@@ -322,7 +471,7 @@ app.delete('/api/quotes/:id', requireAdmin, async (request, response) => {
 });
 
 // Consultar compras registradas / ventas realizadas
-app.get(['/api/sales', '/api/purchases'], requireAdmin, async (request, response) => {
+app.get(['/api/sales', '/api/purchases'], requireAdministrator, async (request, response) => {
   try {
     const docs = await salesCollection
       .find({})
@@ -414,7 +563,7 @@ app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, 
 });
 
 // Eliminar compra
-app.delete(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, response) => {
+app.delete(['/api/sales/:id', '/api/purchases/:id'], requireAdministrator, async (request, response) => {
   try {
     const id = request.params.id;
     await salesCollection.deleteMany(buildIdFilter(id));
@@ -435,9 +584,45 @@ async function start() {
   const database = mongoClient.db();
   quotesCollection = database.collection('quotes');
   salesCollection = database.collection('ventas_realizadas');
+  usersCollection = database.collection('users');
   await database.command({ ping: 1 });
+  await usersCollection.createIndex({ email: 1 }, { unique: true });
+
+  if (ADMIN_BOOTSTRAP_EMAIL && ADMIN_BOOTSTRAP_PASSWORD) {
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ADMIN_BOOTSTRAP_EMAIL)
+      || ADMIN_BOOTSTRAP_PASSWORD.length < 12
+      || ADMIN_BOOTSTRAP_PASSWORD.length > 256
+    ) {
+      throw new Error('Las variables de bootstrap del administrador tienen un formato inválido.');
+    }
+
+    const existingAdmin = await usersCollection.findOne({ email: ADMIN_BOOTSTRAP_EMAIL });
+    if (!existingAdmin) {
+      await usersCollection.insertOne({
+        email: ADMIN_BOOTSTRAP_EMAIL,
+        passwordHash: await hashPassword(ADMIN_BOOTSTRAP_PASSWORD),
+        role: 'admin',
+        createdAt: new Date()
+      });
+      console.log('Cuenta inicial de administrador creada en la colección users.');
+    } else if (existingAdmin.role !== 'admin') {
+      await usersCollection.updateOne(
+        { _id: existingAdmin._id },
+        { $set: { role: 'admin' } }
+      );
+      console.log('La cuenta inicial se actualizó al rol de administrador.');
+    }
+  } else {
+    console.warn('No se creó la cuenta inicial: configura ADMIN_BOOTSTRAP_EMAIL y ADMIN_BOOTSTRAP_PASSWORD.');
+  }
+
+  if (!process.env.ADMIN_SESSION_SECRET) {
+    console.warn('ADMIN_SESSION_SECRET no está configurado; las sesiones cerrarán al reiniciar el servidor.');
+  }
+
   console.log(`Conexión con MongoDB establecida. Base de datos: ${database.databaseName}`);
-  console.log('Colecciones activas: quotes y ventas_realizadas');
+  console.log('Colecciones activas: quotes, ventas_realizadas y users');
   app.listen(PORT, () => {
     console.log(`Servidor escuchando en el puerto ${PORT}`);
   });
