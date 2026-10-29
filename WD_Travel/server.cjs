@@ -500,7 +500,7 @@ app.get('/api/quotes', requireAdmin, async (request, response) => {
   try {
     const docs = await quotesCollection
       .find({})
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1, _id: 1 })
       .limit(500)
       .toArray();
     const quotes = docs.map(doc => {
