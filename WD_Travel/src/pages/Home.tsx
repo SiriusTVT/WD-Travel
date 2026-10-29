@@ -27,42 +27,225 @@ declare global {
 
 type BookingType = 'TIQUETE' | 'PAQUETE';
 
-const travelPackages = [
+interface TravelPackage {
+  destination: string;
+  badge: string;
+  title: string;
+  price?: string;
+  priceLabel?: string;
+  details: string;
+  description: string;
+  includes: string[];
+  formDestination?: string;
+  actionText?: string;
+  image: string;
+}
+
+interface PackageCategory {
+  id: string;
+  title: string;
+  description: string;
+  packages: TravelPackage[];
+}
+
+const packageCategories: PackageCategory[] = [
   {
-    destination: 'Madrid, España',
-    badge: 'Más solicitado',
-    title: 'Plan migratorio a Madrid',
-    price: '$3.500.000',
-    previousPrice: '$4.500.000',
-    details: '10 días en Madrid · Salida 8 de mayo',
-    description: 'Te asesoramos antes y durante tu viaje con acompañamiento personalizado 24/7.',
-    includes: ['Tiquete aéreo', 'Voucher de alojamiento', 'Asistencia médica', 'Formularios migratorios'],
-    formDestination: 'España - Madrid (MAD)',
-    image: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=900&q=85'
+    id: 'paquetes-migratorios',
+    title: 'Paquete migratorio',
+    description: 'Acompañamiento para preparar tu viaje y dar el siguiente paso en España.',
+    packages: [
+      {
+        destination: 'España',
+        badge: 'Acompañamiento 24/7',
+        title: 'Paquete migratorio a España',
+        price: '$3.200.000 COP',
+        priceLabel: 'Desde',
+        details: '10 días y 9 noches',
+        description: 'Viaja con los servicios esenciales organizados y apoyo antes y durante tu experiencia.',
+        includes: [
+          'Tiquetes aéreos',
+          'Seguro de viaje',
+          'E-SIM con 90 GB',
+          'Reserva de hotel por 10 días y 9 noches',
+          'Acompañamiento 24/7'
+        ],
+        formDestination: 'España - Madrid (MAD)',
+        image: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=900&q=85'
+      }
+    ]
   },
   {
-    destination: 'Polonia',
-    badge: 'Oportunidad laboral',
-    title: 'Plan migratorio a Polonia',
-    price: '$8.000.000',
-    previousPrice: '$10.000.000',
-    details: 'Viaje legal con orientación para trabajar',
-    description: 'Te ayudamos con documentos, oportunidades laborales y el proceso de viaje.',
-    includes: ['Orientación migratoria', 'Tiquete aéreo', 'Gestión documental', 'Acompañamiento personalizado'],
-    formDestination: 'Polonia - Varsovia (WAW)',
-    image: 'https://images.unsplash.com/photo-1519197924294-4ba991a11128?auto=format&fit=crop&w=900&q=85'
+    id: 'paquetes-hotel-vuelos',
+    title: 'Paquetes de hotel y vuelos',
+    description: 'Ofertas con hotel y vuelo. Tarifas por persona en acomodación doble; reserva antes del 1 de noviembre de 2026.',
+    packages: [
+      {
+        destination: 'Ciudad de México · saliendo de Bogotá',
+        badge: 'Hotel + vuelo',
+        title: 'Marriott Reforma',
+        price: '$818.649 COP',
+        priceLabel: 'Desde',
+        details: 'Paquete a Ciudad de México',
+        description: 'Tarifa PPN en acomodación doble. Reserva antes del 1 de noviembre de 2026.',
+        includes: ['Hotel: Marriott Reforma', 'Vuelo desde Bogotá'],
+        formDestination: 'México - Ciudad de México (MEX)',
+        image: 'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Madrid · saliendo de Cali',
+        badge: 'Hotel + vuelo',
+        title: 'Hotel Riu Plaza España',
+        price: '$1.584.177 COP',
+        priceLabel: 'Desde',
+        details: 'Paquete a Madrid',
+        description: 'Tarifa PPN en acomodación doble. Reserva antes del 1 de noviembre de 2026.',
+        includes: ['Hotel: Riu Plaza España', 'Vuelo desde Cali'],
+        formDestination: 'España - Madrid (MAD)',
+        image: 'https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Panamá · saliendo de Cali',
+        badge: 'Hotel + vuelo',
+        title: 'Hotel Riu Plaza Panamá',
+        price: '$565.759 COP',
+        priceLabel: 'Desde',
+        details: 'Paquete a Panamá',
+        description: 'Tarifa PPN en acomodación doble. Reserva antes del 1 de noviembre de 2026.',
+        includes: ['Hotel: Riu Plaza Panamá', 'Vuelo desde Cali'],
+        formDestination: 'Panamá - Ciudad de Panamá (PTY)',
+        image: 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=900&q=85'
+      }
+    ]
   },
   {
-    destination: 'España',
-    badge: 'Asesoría 24/7',
-    title: 'Plan migratorio España',
-    price: '$3.500.000',
-    previousPrice: '$4.500.000',
-    details: 'Planes para estudiar, trabajar o vacacionar',
-    description: 'Viaja seguro con lo necesario para ingresar a Europa sin preocupaciones.',
-    includes: ['Tiquete aéreo', 'Alojamiento', 'Asistencia médica', 'Soporte antes y durante el viaje'],
-    formDestination: 'España - Madrid (MAD)',
-    image: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=900&q=85'
+    id: 'paquetes-laborales',
+    title: 'Paquetes con oferta laboral',
+    description: 'Conoce requisitos, condiciones de trabajo y beneficios de cada vacante.',
+    packages: [
+      {
+        destination: 'Montenegro · Podgorica, Tivat y Budva',
+        badge: 'Contratación inmediata',
+        title: 'Personal de hotel',
+        details: 'Experiencia mínima de 1 año en hotelería',
+        description: 'Vacantes para trabajar en hotelería en Montenegro.',
+        includes: [
+          'Salario: 5–7 € netos por hora',
+          'Jornada: 40 horas semanales + horas extra pagadas',
+          '2 comidas al día + 70 € mensuales para alimentación',
+          'Alojamiento compartido incluido',
+          'Transporte incluido',
+          'Contrato de 12 meses, prorrogable',
+          'Beneficios: posibilidad de aumento salarial, crecimiento en la empresa y tarjeta de residencia en 1 mes'
+        ],
+        formDestination: 'Montenegro - Podgorica (TGD)',
+        actionText: 'Consultar esta oferta',
+        image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Croacia',
+        badge: 'Ingreso inmediato',
+        title: '4 vacantes para electricistas',
+        details: 'Se requiere experiencia comprobada',
+        description: 'Oferta laboral para electricistas en Croacia.',
+        includes: [
+          'Salario: 7–9 € por hora',
+          'Jornada: 10–12 horas diarias',
+          '6 días a la semana',
+          'Alojamiento gratuito',
+          'Ropa de trabajo gratuita'
+        ],
+        formDestination: 'Croacia - Dubrovnik (DBV)',
+        actionText: 'Consultar esta oferta',
+        image: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Croacia',
+        badge: 'Vacantes disponibles',
+        title: 'Albañiles y ayudantes de construcción',
+        details: 'Salario según experiencia',
+        description: 'Oferta laboral para trabajos de construcción en Croacia.',
+        includes: [
+          'Salario: 5–7 € por hora, según experiencia',
+          'Jornada: 10–12 horas diarias',
+          'Contrato de hasta 3 años',
+          'Permiso laboral',
+          'Alojamiento gratuito',
+          'Ropa de trabajo gratis'
+        ],
+        formDestination: 'Croacia - Dubrovnik (DBV)',
+        actionText: 'Consultar esta oferta',
+        image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Montenegro · Podgorica',
+        badge: 'Vacante',
+        title: 'Barista',
+        details: 'Experiencia comprobada',
+        description: 'Vacante para barista en Podgorica, Montenegro.',
+        includes: [
+          'Salario: 800 € netos al mes',
+          'Horario: 8 horas al día, 6 días a la semana',
+          'Alojamiento incluido',
+          '2 comidas al día'
+        ],
+        formDestination: 'Montenegro - Podgorica (TGD)',
+        actionText: 'Consultar esta oferta',
+        image: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Montenegro · Podgorica',
+        badge: 'Contratación inmediata',
+        title: 'Personal de limpieza',
+        details: 'Experiencia en limpieza profesional',
+        description: 'Vacante para personal de limpieza en Podgorica, Montenegro.',
+        includes: [
+          'Salario: 700 € netos al mes',
+          'Horario: 8 horas al día, 6 días a la semana',
+          'Alojamiento incluido',
+          'Comidas no incluidas',
+          'Transporte incluido',
+          'Contrato de 12 meses, prorrogable'
+        ],
+        formDestination: 'Montenegro - Podgorica (TGD)',
+        actionText: 'Consultar esta oferta',
+        image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=85'
+      }
+    ]
+  },
+  {
+    id: 'asistencias-viaje',
+    title: 'Asistencias de viaje',
+    description: 'Soluciones para viajar con respaldo médico y conexión móvil en destino.',
+    packages: [
+      {
+        destination: 'Asistencia médica',
+        badge: 'Viaja con respaldo',
+        title: 'Seguro médico de viaje',
+        details: 'Cobertura según destino y duración del viaje',
+        description: 'Asistencia médica internacional para acompañarte ante imprevistos de salud durante el viaje.',
+        includes: [
+          'Opciones para diferentes destinos y duraciones',
+          'Consulta las coberturas y condiciones disponibles',
+          'Asesoría para elegir la asistencia adecuada'
+        ],
+        actionText: 'Cotizar asistencia',
+        image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=900&q=85'
+      },
+      {
+        destination: 'Conectividad internacional',
+        badge: 'eSIM',
+        title: 'Internet móvil para tu viaje',
+        details: 'Planes disponibles según país y duración',
+        description: 'Mantente conectado en destino con una eSIM digital. Consulta compatibilidad, países y planes disponibles.',
+        includes: [
+          'Activación digital, sin tarjeta física',
+          'Planes de datos según el destino',
+          'El paquete migratorio a España incluye una eSIM con 90 GB'
+        ],
+        actionText: 'Cotizar asistencia',
+        image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=85'
+      }
+    ]
   }
 ];
 
@@ -159,9 +342,9 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const selectPackage = (destination: string) => {
+  const selectPackage = (destination?: string) => {
     setBookingType('PAQUETE');
-    setDestination(destination);
+    setDestination(destination ?? '');
     scrollToForm();
   };
 
@@ -422,35 +605,57 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       <section className="packages-section" aria-labelledby="packages-title">
         <div className="packages-heading">
           <span className="section-eyebrow">Ofertas WD Travel</span>
-          <h2 id="packages-title">Paquetes para hacer realidad tu próximo viaje</h2>
-          <p>Elige una opción y recibe asesoría personalizada para reservarla.</p>
+          <h2 id="packages-title">Encuentra el paquete ideal para ti</h2>
+          <p>Explora nuestras opciones por categoría y recibe asesoría personalizada.</p>
         </div>
-        <div className="packages-grid">
-          {travelPackages.map(travelPackage => (
-            <article className="package-card" key={travelPackage.title}>
-              <div
-                className="package-image"
-                style={{ backgroundImage: `linear-gradient(180deg, rgba(13, 42, 82, 0.08), rgba(13, 42, 82, 0.85)), url('${travelPackage.image}')` }}
-              >
-                <span className="package-badge">{travelPackage.badge}</span>
-                <div className="package-destination">{travelPackage.destination}</div>
+        <nav className="package-category-nav" aria-label="Categorías de paquetes">
+          {packageCategories.map(category => (
+            <a key={category.id} href={`#${category.id}`}>{category.title}</a>
+          ))}
+        </nav>
+        <div className="package-categories">
+          {packageCategories.map(category => (
+            <section
+              className="package-category"
+              id={category.id}
+              key={category.id}
+              aria-labelledby={`${category.id}-title`}
+            >
+              <div className="package-category-heading">
+                <h3 id={`${category.id}-title`}>{category.title}</h3>
+                <p>{category.description}</p>
               </div>
-              <div className="package-content">
-                <h3>{travelPackage.title}</h3>
-                <p className="package-details">{travelPackage.details}</p>
-                <div className="package-price">
-                  <strong>{travelPackage.price}</strong>
-                  <del>{travelPackage.previousPrice}</del>
-                </div>
-                <p className="package-description">{travelPackage.description}</p>
-                <ul className="package-includes">
-                  {travelPackage.includes.map(item => <li key={item}>{item}</li>)}
-                </ul>
-                <button type="button" className="package-button" onClick={() => selectPackage(travelPackage.formDestination)}>
-                  Quiero cotizar este paquete
-                </button>
+              <div className="packages-grid">
+                {category.packages.map(travelPackage => (
+                  <article className="package-card" key={travelPackage.title}>
+                    <div
+                      className="package-image"
+                      style={{ backgroundImage: `linear-gradient(180deg, rgba(13, 42, 82, 0.08), rgba(13, 42, 82, 0.85)), url('${travelPackage.image}')` }}
+                    >
+                      <span className="package-badge">{travelPackage.badge}</span>
+                      <div className="package-destination">{travelPackage.destination}</div>
+                    </div>
+                    <div className="package-content">
+                      <h4>{travelPackage.title}</h4>
+                      <p className="package-details">{travelPackage.details}</p>
+                      {travelPackage.price && (
+                        <div className="package-price">
+                          <span>{travelPackage.priceLabel}</span>
+                          <strong>{travelPackage.price}</strong>
+                        </div>
+                      )}
+                      <p className="package-description">{travelPackage.description}</p>
+                      <ul className="package-includes">
+                        {travelPackage.includes.map(item => <li key={item}>{item}</li>)}
+                      </ul>
+                      <button type="button" className="package-button" onClick={() => selectPackage(travelPackage.formDestination)}>
+                        {travelPackage.actionText ?? 'Quiero cotizar este paquete'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
-            </article>
+            </section>
           ))}
         </div>
       </section>

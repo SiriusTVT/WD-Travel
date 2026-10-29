@@ -330,6 +330,60 @@ h3 {
   font-size: 1.05rem;
 }
 
+.package-category-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 1100px;
+  margin: 0 auto 38px;
+}
+
+.package-category-nav a {
+  padding: 10px 16px;
+  color: var(--wd-navy);
+  background: #fff;
+  border: 1px solid var(--wd-line);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.package-category-nav a:hover,
+.package-category-nav a:focus-visible {
+  color: #fff;
+  background: var(--wd-blue);
+  border-color: var(--wd-blue);
+}
+
+.package-categories {
+  position: relative;
+  z-index: 1;
+}
+
+.package-category {
+  max-width: 1100px;
+  margin: 0 auto 44px;
+  scroll-margin-top: 24px;
+}
+
+.package-category-heading {
+  margin-bottom: 20px;
+}
+
+.package-category-heading h3 {
+  margin-bottom: 6px;
+  color: var(--wd-navy);
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+}
+
+.package-category-heading p {
+  color: var(--wd-muted);
+  line-height: 1.55;
+}
+
 .packages-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -384,10 +438,11 @@ h3 {
   padding: 22px;
 }
 
-.package-content h3 {
+.package-content h4 {
   margin-bottom: 8px;
   color: #173964;
   font-size: 1.25rem;
+  line-height: 1.3;
 }
 
 .package-details {
@@ -401,22 +456,22 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px;
+  gap: 6px 10px;
   margin-bottom: 12px;
+}
+
+.package-price span {
+  color: var(--wd-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .package-price strong {
   color: #2d60a8;
-  font-size: 1.55rem;
-}
-
-.package-price del {
-  color: #94a3b8;
-  font-size: 0.9rem;
+  font-size: 1.45rem;
 }
 
 .package-description {
-  min-height: 48px;
   margin-bottom: 16px;
   color: #475569;
   line-height: 1.45;
@@ -425,12 +480,12 @@ h3 {
 .package-includes {
   display: grid;
   gap: 7px;
-  min-height: 105px;
   margin: 0 0 20px;
   padding: 0;
   color: #334155;
   list-style: none;
   font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .package-includes li::before {
@@ -698,9 +753,10 @@ input {
 
 .about-content h2,
 .packages-heading h2,
+.package-category-heading h3,
 .presentation-copy h2,
 .service-card h3,
-.package-content h3 {
+.package-content h4 {
   color: var(--wd-navy);
 }
 
