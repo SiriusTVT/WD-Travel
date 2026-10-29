@@ -377,21 +377,12 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function removeCedula(value) {
-  if (Array.isArray(value)) {
-    return value.map(removeCedula);
+function formatQuoteDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value || '';
   }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([key]) => key.toLowerCase() !== 'cedula')
-        .map(([key, item]) => [key, removeCedula(item)])
-    );
-  }
-  return value;
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 async function sendQuoteNotification(quote) {
@@ -402,47 +393,68 @@ async function sendQuoteNotification(quote) {
     return false;
   }
 
-  const safeQuote = removeCedula(quote);
-  const labels = {
-    id: 'ID de cotización',
-    quoteDate: 'Fecha de cotización',
-    purchaseDate: 'Fecha de compra',
-    firstName: 'Nombres',
-    lastName: 'Apellidos',
-    name: 'Nombre',
-    passenger: 'Titular',
-    phone: 'Teléfono / WhatsApp',
-    documentType: 'Tipo de documento',
-    route: 'Ruta',
-    bookingCode: 'Código de reserva',
-    travelDate: 'Fecha de ida',
-    returnDate: 'Fecha de regreso',
-    tripType: 'Tipo de viaje',
-    adultCount: 'Cantidad de adultos',
-    childCount: 'Cantidad de niños',
-    childAges: 'Edades de los niños',
-    isTicket: 'Incluye tiquete',
-    isPackage: 'Incluye paquete',
-    airline: 'Aerolínea',
-    paymentMethod: 'Método de pago',
-    totalValue: 'Valor total',
-    paymentStatus: 'Estado del pago',
-    paidAmount: 'Valor pagado',
-    passengers: 'Pasajeros'
-  };
-  const details = Object.entries(safeQuote)
-    .filter(([, value]) => value !== '' && value !== null && value !== undefined)
-    .map(([key, value]) => {
-      const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-      return {
-        label: labels[key] || key,
-        value: displayValue
-      };
-    });
-  const text = details.map(({ label, value }) => `${label}:\n${value}`).join('\n\n');
-  const html = details.map(({ label, value }) =>
-    `<h3>${escapeHtml(label)}</h3><pre style="white-space:pre-wrap;font-family:Arial,sans-serif">${escapeHtml(value)}</pre>`
-  ).join('');
+  const passengerName = [quote.firstName, quote.lastName]
+    .filter(value => typeof value === 'string' && value.trim())
+    .join(' ')
+    || quote.passenger
+    || 'Cliente';
+  const childCount = Number(quote.childCount) || 0;
+  const childAges = Array.isArray(quote.childAges)
+    ? quote.childAges.filter(age => Number.isInteger(age)).join(', ')
+    : '';
+  const tripType = quote.tripType === 'ROUND_TRIP' || quote.returnDate
+    ? 'Ida y vuelta'
+    : 'Solo ida';
+  const service = quote.isPackage ? 'Paquete' : 'Tiquete';
+  const details = [
+    { label: 'Nombre', value: passengerName },
+    { label: 'Teléfono / WhatsApp', value: quote.phone },
+    { label: 'Tipo de documento', value: quote.documentType },
+    { label: 'Ruta', value: quote.route },
+    { label: 'Tipo de viaje', value: tripType },
+    { label: 'Fecha de ida', value: formatQuoteDate(quote.travelDate) },
+    ...(quote.returnDate
+      ? [{ label: 'Fecha de regreso', value: formatQuoteDate(quote.returnDate) }]
+      : []),
+    { label: 'Adultos', value: String(Number(quote.adultCount) || 0) },
+    { label: 'Niños', value: String(childCount) },
+    ...(childCount > 0 && childAges
+      ? [{ label: 'Edades de los niños', value: childAges }]
+      : []),
+    { label: 'Servicio solicitado', value: service }
+  ].filter(detail => detail.value !== undefined && detail.value !== null && detail.value !== '');
+
+  const text = [
+    'NUEVA SOLICITUD DE COTIZACIÓN',
+    '',
+    'Se recibió una nueva solicitud con estos datos:',
+    '',
+    ...details.map(({ label, value }) => `${label}: ${value}`)
+  ].join('\n');
+  const rows = details.map(({ label, value }) => `
+    <tr>
+      <td style="padding:12px 14px;border-bottom:1px solid #e5eaf1;color:#64748b;font-size:14px;width:38%;vertical-align:top;">${escapeHtml(label)}</td>
+      <td style="padding:12px 14px;border-bottom:1px solid #e5eaf1;color:#173964;font-size:15px;font-weight:600;vertical-align:top;">${escapeHtml(value)}</td>
+    </tr>
+  `).join('');
+  const html = `
+    <div style="margin:0;padding:32px 16px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;color:#173964;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+        <div style="padding:24px 28px;background:#173964;color:#ffffff;">
+          <p style="margin:0 0 6px;color:#f2c94c;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">WD Travel</p>
+          <h1 style="margin:0;font-size:22px;line-height:1.3;color:#ffffff;">Nueva solicitud de cotización</h1>
+          <p style="margin:8px 0 0;color:#dbeafe;font-size:14px;">Datos enviados por ${escapeHtml(passengerName)}</p>
+        </div>
+        <div style="padding:22px 18px 26px;">
+          <p style="margin:0 10px 16px;color:#475569;font-size:14px;line-height:1.5;">Un cliente está solicitando información para su viaje. Estos son los datos necesarios para preparar la cotización:</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #e5eaf1;border-collapse:collapse;border-radius:8px;">
+            <tbody>${rows}</tbody>
+          </table>
+          <p style="margin:18px 10px 0;color:#64748b;font-size:12px;">Este mensaje fue generado automáticamente desde el formulario de cotización de WD Travel.</p>
+        </div>
+      </div>
+    </div>
+  `;
 
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -454,9 +466,9 @@ async function sendQuoteNotification(quote) {
       body: JSON.stringify({
         from: RESEND_FROM_EMAIL,
         to: [QUOTE_NOTIFICATION_EMAIL],
-        subject: `Nueva cotización recibida - ${safeQuote.passenger || safeQuote.id}`,
+        subject: `Nueva solicitud de cotización - ${passengerName}`,
         text,
-        html: `<h2>Nueva cotización recibida</h2>${html}`
+        html
       })
     });
 

@@ -6,7 +6,7 @@
 - **Compras registradas (Ventas realizadas):** Al dar click en **Completar compra** y guardar con **Registrar compra y mover a Compras**, el registro se traslada de `quotes` al nuevo esquema/colección `ventas_realizadas` en MongoDB mediante `POST /api/sales`. Además, al editar una compra desde el panel, los cambios se actualizan mediante `PUT /api/sales/:id`.
 - **Consulta persistente:** La sección de **Compras registradas** consulta directamente las compras persistidas en `ventas_realizadas` mediante `GET /api/sales` al abrirse o seleccionarse, garantizando que los datos persistan y se mantengan actualizados.
 - **Seguridad:** La conexión a la base de datos se obtiene exclusivamente desde la variable de entorno `MONGO_KEY` en el servidor Node/Express (`server.cjs`).
-- **Aviso por correo:** Cada cotización nueva guardada en MongoDB genera un correo mediante Resend. El mensaje incluye la información de la cotización, excepto la cédula, que se excluye también de los datos de pasajeros.
+- **Aviso por correo:** Cada cotización nueva guardada en MongoDB genera un correo mediante Resend con un resumen organizado de los datos del formulario: contacto, ruta, fechas, viajeros y servicio solicitado. No incluye cédula, código de reserva, aerolínea, pagos, identificadores ni otros campos internos.
 
 En Render, configura estas variables de entorno:
 
