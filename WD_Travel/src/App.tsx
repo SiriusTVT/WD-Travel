@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { AdminLogin } from './pages/AdminLogin';
+import { CreateCount } from './pages/CreateCount';
 import { Home } from './pages/Home';
 import { Admin } from './pages/Admin';
 import { type Booking } from './data/mockData';
 
 const ADMIN_PATH = '/wdtraveladmin';
+const CREATE_COUNT_PATH = '/createcount';
 
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
   const [adminRole, setAdminRole] = useState<'admin' | 'advisor' | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const isAdminRoute = pathname.replace(/\/+$/, '') === ADMIN_PATH;
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const isAdminRoute = normalizedPath === ADMIN_PATH;
+  const isCreateCountRoute = normalizedPath === CREATE_COUNT_PATH;
 
   const navigate = useCallback((path: string) => {
     window.history.pushState({}, '', path);
     setPathname(window.location.pathname);
+    if (path.replace(/\/+$/, '') !== ADMIN_PATH) {
+      setAdminRole(null);
+      setBookings([]);
+    }
   }, []);
 
   const loadAdminData = useCallback(async (role: 'admin' | 'advisor') => {
@@ -53,7 +61,14 @@ function App() {
   }, [navigate]);
 
   useEffect(() => {
-    const handlePopState = () => setPathname(window.location.pathname);
+    const handlePopState = () => {
+      const nextPathname = window.location.pathname;
+      setPathname(nextPathname);
+      if (nextPathname.replace(/\/+$/, '') !== ADMIN_PATH) {
+        setAdminRole(null);
+        setBookings([]);
+      }
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -89,6 +104,10 @@ function App() {
       isMounted = false;
     };
   }, [isAdminRoute, loadAdminData]);
+
+  if (isCreateCountRoute) {
+    return <CreateCount onBackToSite={() => navigate('/')} />;
+  }
 
   if (isAdminRoute && adminRole) {
     return (

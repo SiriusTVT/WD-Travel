@@ -1,5 +1,6 @@
 const path = require('node:path');
 const {
+  createHash,
   createHmac,
   randomBytes,
   scrypt,
@@ -13,9 +14,12 @@ const PORT = Number(process.env.PORT || 3000);
 const MONGO_KEY = process.env.MONGO_KEY;
 const ADMIN_BOOTSTRAP_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
 const ADMIN_BOOTSTRAP_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+const CREATE_ACCOUNT_SECRET = process.env.CREATE_ACCOUNT_SECRET;
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || randomBytes(32).toString('hex');
 const ADMIN_SESSION_COOKIE = 'wdtravel_admin';
+const ACCOUNT_CREATION_COOKIE = 'wdtravel_createcount';
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
+const ACCOUNT_CREATION_SESSION_TTL_SECONDS = 15 * 60;
 const PASSWORD_HASH_LENGTH = 64;
 const PASSWORD_SALT_LENGTH = 16;
 const scryptAsync = promisify(scrypt);
@@ -80,6 +84,40 @@ function getAdminSession(request) {
   return sessionData;
 }
 
+function getAccountCreationSession(request) {
+  const cookie = request.headers.cookie
+    ?.split(';')
+    .map(value => value.trim())
+    .find(value => value.startsWith(`${ACCOUNT_CREATION_COOKIE}=`));
+  const session = cookie?.slice(ACCOUNT_CREATION_COOKIE.length + 1);
+  const [payload, signature] = session?.split('.') || [];
+
+  if (!payload || !signature || !/^[a-f\d]{64}$/i.test(signature)) return null;
+
+  const expected = Buffer.from(getAdminSessionSignature(payload), 'hex');
+  const provided = Buffer.from(signature, 'hex');
+  if (!timingSafeEqual(expected, provided)) return null;
+
+  let sessionData;
+  try {
+    sessionData = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    sessionData.purpose !== 'account-creation'
+    || !Number.isSafeInteger(sessionData.issuedAt)
+    || sessionData.issuedAt > now
+    || now - sessionData.issuedAt > ACCOUNT_CREATION_SESSION_TTL_SECONDS
+  ) {
+    return null;
+  }
+
+  return sessionData;
+}
+
 function requireRoles(...allowedRoles) {
   return async (request, response, next) => {
     const session = getAdminSession(request);
@@ -113,6 +151,18 @@ function requireRoles(...allowedRoles) {
 
 const requireAdmin = requireRoles('admin', 'advisor');
 const requireAdministrator = requireRoles('admin');
+
+function requireAccountCreationSession(request, response, next) {
+  if (!CREATE_ACCOUNT_SECRET) {
+    response.status(503).json({ error: 'El acceso de creación de cuentas no está configurado.' });
+    return;
+  }
+  if (!getAccountCreationSession(request)) {
+    response.status(401).json({ error: 'Ingresa el código secreto para continuar.' });
+    return;
+  }
+  next();
+}
 
 function getSecureCookieAttribute(request) {
   const isHttps = process.env.NODE_ENV === 'production'
@@ -165,6 +215,97 @@ function recordFailedLogin(ipAddress) {
   }
   current.count += 1;
 }
+
+app.post('/api/createcount/access', (request, response) => {
+  if (!CREATE_ACCOUNT_SECRET || CREATE_ACCOUNT_SECRET.length < 32) {
+    response.status(503).json({ error: 'El acceso de creación de cuentas no está configurado correctamente.' });
+    return;
+  }
+
+  const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
+  if (isLoginRateLimited(ipAddress)) {
+    response.status(429).json({ error: 'Demasiados intentos. Espera 15 minutos e inténtalo nuevamente.' });
+    return;
+  }
+
+  const secret = request.body?.secret;
+  if (typeof secret !== 'string' || secret.length > 512) {
+    recordFailedLogin(ipAddress);
+    response.status(401).json({ error: 'El código secreto no es válido.' });
+    return;
+  }
+
+  const expected = createHash('sha256').update(CREATE_ACCOUNT_SECRET).digest();
+  const provided = createHash('sha256').update(secret).digest();
+  if (!timingSafeEqual(expected, provided)) {
+    recordFailedLogin(ipAddress);
+    response.status(401).json({ error: 'El código secreto no es válido.' });
+    return;
+  }
+
+  loginAttempts.delete(ipAddress);
+  const payload = Buffer.from(JSON.stringify({
+    purpose: 'account-creation',
+    issuedAt: Math.floor(Date.now() / 1000)
+  })).toString('base64url');
+  const secure = getSecureCookieAttribute(request);
+  response.setHeader(
+    'Set-Cookie',
+    `${ACCOUNT_CREATION_COOKIE}=${payload}.${getAdminSessionSignature(payload)}; HttpOnly; SameSite=Strict; Path=/api/createcount; Max-Age=${ACCOUNT_CREATION_SESSION_TTL_SECONDS}${secure}`
+  );
+  response.json({ authorized: true });
+});
+
+app.get('/api/createcount/session', requireAccountCreationSession, (request, response) => {
+  response.json({ authorized: true });
+});
+
+app.post('/api/createcount/logout', (request, response) => {
+  const secure = getSecureCookieAttribute(request);
+  response.setHeader(
+    'Set-Cookie',
+    `${ACCOUNT_CREATION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/api/createcount; Max-Age=0${secure}`
+  );
+  response.json({ authorized: false });
+});
+
+app.post('/api/createcount/accounts', requireAccountCreationSession, async (request, response) => {
+  const email = typeof request.body?.email === 'string'
+    ? request.body.email.trim().toLowerCase()
+    : '';
+  const password = request.body?.password;
+  const role = request.body?.role;
+
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    || typeof password !== 'string'
+    || password.length < 12
+    || password.length > 256
+    || !['admin', 'advisor'].includes(role)
+  ) {
+    response.status(400).json({
+      error: 'Ingresa un correo válido, una contraseña de 12 a 256 caracteres y un rol válido.'
+    });
+    return;
+  }
+
+  try {
+    const result = await usersCollection.insertOne({
+      email,
+      passwordHash: await hashPassword(password),
+      role,
+      createdAt: new Date()
+    });
+    response.status(201).json({ created: true, id: result.insertedId.toString(), email, role });
+  } catch (error) {
+    if (error.code === 11000) {
+      response.status(409).json({ error: 'Ya existe una cuenta con ese correo.' });
+      return;
+    }
+    console.error('Error creando cuenta desde /createcount:', error);
+    response.status(500).json({ error: 'No fue posible crear la cuenta.' });
+  }
+});
 
 app.post('/api/admin/login', async (request, response, next) => {
   const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
@@ -225,43 +366,6 @@ app.post('/api/admin/logout', (request, response) => {
     `${ADMIN_SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`
   );
   response.json({ authenticated: false });
-});
-
-app.post('/api/admin/users', requireAdministrator, async (request, response) => {
-  const email = typeof request.body?.email === 'string'
-    ? request.body.email.trim().toLowerCase()
-    : '';
-  const password = request.body?.password;
-  const role = request.body?.role;
-
-  if (
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    || typeof password !== 'string'
-    || password.length < 12
-    || !['admin', 'advisor'].includes(role)
-  ) {
-    response.status(400).json({
-      error: 'Ingresa un correo válido, una contraseña de al menos 12 caracteres y un rol válido.'
-    });
-    return;
-  }
-
-  try {
-    const result = await usersCollection.insertOne({
-      email,
-      passwordHash: await hashPassword(password),
-      role,
-      createdAt: new Date()
-    });
-    response.status(201).json({ created: true, id: result.insertedId.toString(), email, role });
-  } catch (error) {
-    if (error.code === 11000) {
-      response.status(409).json({ error: 'Ya existe una cuenta con ese correo.' });
-      return;
-    }
-    console.error('Error creando usuario administrativo:', error);
-    response.status(500).json({ error: 'No fue posible crear el usuario.' });
-  }
 });
 
 function escapeHtml(value) {

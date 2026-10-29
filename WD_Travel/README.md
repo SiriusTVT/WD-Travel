@@ -16,6 +16,7 @@ En Render, configura estas variables de entorno:
 - `ADMIN_BOOTSTRAP_EMAIL`: correo de la cuenta inicial de administrador.
 - `ADMIN_BOOTSTRAP_PASSWORD`: contraseña inicial de esa cuenta; se guarda como hash scrypt, no como texto plano.
 - `ADMIN_SESSION_SECRET`: secreto aleatorio largo para firmar las sesiones.
+- `CREATE_ACCOUNT_SECRET`: código secreto de al menos 32 caracteres para abrir el gestor oculto de cuentas.
 - `RESEND_API_KEY`: clave API de Resend.
 - `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
 - `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.
@@ -24,11 +25,18 @@ Al iniciar el servidor, se crea la cuenta inicial en la colección MongoDB `user
 
 Ambos roles pueden consultar y editar cotizaciones y registrar/editar compras. Solo `admin` puede consultar ventas y eliminar cotizaciones o compras; esas restricciones se verifican en el servidor además de ocultar las acciones en la interfaz. La creación pública de cotizaciones sigue disponible.
 
+Para crear cuentas, abre directamente `/createcount`, valida el código secreto y registra
+el correo, una contraseña de al menos 12 caracteres y el rol (`admin` o `advisor`). La
+cuenta se guarda en `users` con contraseña hasheada y no se devuelve ni almacena como texto
+plano. El acceso desbloqueado dura 15 minutos. No incluyas el código secreto en el frontend
+ni lo compartas con los usuarios de la aplicación.
+
 Para desarrollo local, configura `MONGO_KEY`, `ADMIN_BOOTSTRAP_EMAIL`,
-`ADMIN_BOOTSTRAP_PASSWORD` y `ADMIN_SESSION_SECRET` en el entorno e inicia el servidor con
+`ADMIN_BOOTSTRAP_PASSWORD`, `ADMIN_SESSION_SECRET` y `CREATE_ACCOUNT_SECRET` en el entorno e inicia el servidor con
 `npm start` después de construir el frontend. En PowerShell:
 `$env:MONGO_KEY = "..."`; `$env:ADMIN_BOOTSTRAP_EMAIL = "..."`;
-`$env:ADMIN_BOOTSTRAP_PASSWORD = "..."`; `$env:ADMIN_SESSION_SECRET = "..."`; `npm start`. Vite redirige
+`$env:ADMIN_BOOTSTRAP_PASSWORD = "..."`; `$env:ADMIN_SESSION_SECRET = "..."`;
+`$env:CREATE_ACCOUNT_SECRET = "..."`; `npm start`. Vite redirige
 `/api` al servidor local en el puerto 3000.
 También debes configurar las tres variables de Resend anteriores; el remitente debe estar
 verificado en Resend. Si falta alguna o Resend rechaza/falla el envío, la cotización se
