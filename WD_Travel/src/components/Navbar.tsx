@@ -51,7 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLog
   };
 
   return (
-    <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 30px', background: 'linear-gradient(110deg, #102f59, #2468b3)', color: '#fff', boxShadow: '0 4px 16px rgba(16,47,89,0.22)' }}>
+    <nav className="nav-main" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 30px', background: 'linear-gradient(110deg, #102f59, #2468b3)', color: '#fff', boxShadow: '0 4px 16px rgba(16,47,89,0.22)' }}>
       <button
         type="button"
         onClick={onGoHome}
@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLog
                 rel="noreferrer"
                 aria-label={`Visitar WD Travel en ${socialLink.name}`}
                 title={socialLink.name}
-                style={{ display: 'flex', color: '#fff', width: '32px', height: '32px', alignItems: 'center', justifyContent: 'center' }}
+                style={{ display: 'flex', width: '32px', height: '32px', alignItems: 'center', justifyContent: 'center' }}
               >
                 <span style={{ display: 'flex', width: '22px', height: '22px' }}>{socialLink.icon}</span>
               </a>
@@ -83,7 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLog
             <button
               type="button"
               onClick={onGoHome}
-              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#E3B31D', color: '#2D60A8' }}
+              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', background: 'linear-gradient(135deg, var(--wd-gold-dark), var(--wd-gold))', color: 'var(--wd-navy)', transition: 'filter 0.2s ease' }}
             >
               Volver al sitio
             </button>

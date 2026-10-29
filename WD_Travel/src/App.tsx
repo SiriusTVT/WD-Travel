@@ -111,7 +111,7 @@ function App() {
 
   if (isAdminRoute && adminRole) {
     return (
-      <div style={{ backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
+      <div style={{ background: 'var(--wd-sky)', minHeight: '100vh' }}>
         <Navbar
           currentTab="admin"
           onGoHome={() => navigate('/')}
@@ -132,7 +132,7 @@ function App() {
   }
 
   return (
-    <div style={{ backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh' }}>
       <Navbar currentTab="home" onGoHome={() => navigate('/')} />
       <Home onBookingSubmit={booking => setBookings(currentBookings => [booking, ...currentBookings])} />
     </div>

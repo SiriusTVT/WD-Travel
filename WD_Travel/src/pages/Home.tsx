@@ -89,6 +89,23 @@ const travelServices = [
   }
 ];
 
+const travelIcons = [
+  { emoji: '✈️', style: { left: '4%', top: '10%', fontSize: '2.5rem', color: 'var(--wd-gold)', animationDelay: '0s' } },
+  { emoji: '🧳', style: { right: '6%', top: '28%', fontSize: '2.1rem', color: 'var(--wd-blue-bright)', animationDelay: '5s' } },
+  { emoji: '🌍', style: { left: '5%', bottom: '20%', fontSize: '2.4rem', color: 'rgba(244, 189, 36, 0.85)', animationDelay: '10s' } },
+  { emoji: '🗺️', style: { right: '9%', bottom: '28%', fontSize: '2rem', color: 'var(--wd-blue)', animationDelay: '2s' } },
+  { emoji: '🧭', style: { left: '6%', top: '52%', fontSize: '1.9rem', color: 'var(--wd-gold-dark)', animationDelay: '7s' } },
+  { emoji: '⛵', style: { right: '5%', top: '50%', fontSize: '2.2rem', color: 'var(--wd-blue-bright)', animationDelay: '12s' } },
+];
+
+const SectionDivider = ({ fill = 'var(--wd-sky)' }: { fill?: string }) => (
+  <section className="section-divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
+      <path d="M0,18 C260,-12 740,48 1200,18 V40 H0 Z" style={{ fill }} />
+    </svg>
+  </section>
+);
+
 interface HomeProps {
   onBookingSubmit: (booking: Booking) => void;
 }
@@ -289,7 +306,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   };
 
   return (
-    <div style={{ backgroundColor: '#f4f7fe', minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh' }}>
+      {travelIcons.map((icon, i) => (
+        <span key={i} className="travel-decor" aria-hidden="true" style={icon.style}>{icon.emoji}</span>
+      ))}
       <section className="hero-section" style={{
         color: '#ffffff',
         padding: '80px 20px',
@@ -310,16 +330,18 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         <div className="hero-content" style={{ maxWidth: '900px', margin: '0 auto' }}>
           <button
             onClick={scrollToForm}
+            className="hero-cta"
             style={{
               padding: '16px 36px',
-              backgroundColor: '#E3B31D',
-              color: '#2D60A8',
+              background: 'linear-gradient(135deg, var(--wd-blue), var(--wd-navy))',
+              color: '#fff',
               border: 'none',
               borderRadius: '50px',
               fontSize: '1.2rem',
               fontWeight: 'bold',
               cursor: 'pointer',
-              boxShadow: '0 6px 20px rgba(227,179,29,0.4)'
+              boxShadow: '0 8px 20px rgba(16, 47, 89, 0.25)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
             }}
           >
             Cotizar mi viaje ahora
@@ -337,6 +359,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <span className="scroll-arrow" aria-hidden="true">↓</span>
         </button>
       </section>
+      <SectionDivider fill="var(--wd-sky)" />
 
       <section className="about-section" aria-labelledby="about-title">
         <div className="about-content">
@@ -356,6 +379,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <span>Opciones pensadas para tus objetivos, presupuesto y estilo de vida.</span>
         </div>
       </section>
+      <SectionDivider fill="var(--wd-cream)" />
 
       <section className="presentation-section" aria-labelledby="presentation-title">
         <div className="presentation-copy">
@@ -436,6 +460,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           ))}
         </div>
       </section>
+      <SectionDivider fill="var(--wd-gold)" />
 
       <section className="services-section" aria-labelledby="services-title">
         <div className="packages-heading">
@@ -453,16 +478,17 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           ))}
         </div>
       </section>
+      <SectionDivider fill="var(--wd-sky)" />
 
       <div ref={formRef} style={{ padding: '40px 20px 60px 20px' }}>
-        <div className="quote-card" style={{ maxWidth: '850px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}>
+        <div className="quote-card" style={{ maxWidth: '850px', margin: '0 auto', borderRadius: '18px' }}>
 
           {!submitted && (
             <div style={{ textAlign: 'center', marginBottom: '35px' }}>
-              <h2 style={{ color: '#2D60A8', fontSize: '1.8rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
+              <h2 style={{ color: 'var(--wd-blue)', fontSize: '1.8rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
                 Completa tu cotización
               </h2>
-              <p style={{ color: '#6b7280', fontSize: '1rem', margin: 0 }}>
+              <p style={{ color: 'var(--wd-muted)', fontSize: '1rem', margin: 0 }}>
                 Cuéntanos los detalles de tu viaje y te enviaremos una opción a tu medida.
               </p>
             </div>
@@ -481,7 +507,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               )}
               <button
                 onClick={() => setSubmitted(false)}
-                style={{ marginTop: '20px', padding: '10px 24px', backgroundColor: '#2D60A8', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+                style={{ marginTop: '20px', padding: '10px 24px', background: 'linear-gradient(135deg, var(--wd-blue), var(--wd-navy))', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: 'filter 0.2s ease' }}
               >
                 Realizar otra consulta
               </button>
@@ -489,23 +515,23 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           ) : (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ margin: '0 0 15px 0', color: '#2D60A8', fontSize: '1.1rem' }}>Datos del titular</h3>
+              <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: 'var(--wd-blue)', fontSize: '1.1rem' }}>Datos del titular</h3>
                 <div className="traveler-fields-grid">
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Nombres:</label>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Nombres:</label>
                     <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej.: María José" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Apellidos:</label>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Apellidos:</label>
                     <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej.: Pérez Gómez" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de documento de identidad:</label>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de documento de identidad:</label>
                     <select required value={documentType} onChange={e => {
                       setDocumentType(e.target.value);
                       setDocumentNumber(current => normalizeDocumentNumber(current, e.target.value));
-                    }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
+                    }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)', backgroundColor: 'var(--wd-cream)' }}>
                       <option>Cédula de ciudadanía</option>
                       <option>Tarjeta de identidad</option>
                       <option>Registro civil</option>
@@ -514,38 +540,38 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Número de identidad:</label>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Número de identidad:</label>
                     <input required type="text" inputMode={documentType === 'Pasaporte' ? 'text' : 'numeric'} minLength={documentType === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={documentType === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={documentType === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} placeholder="Escribe el número de identidad" value={documentNumber} onChange={e => setDocumentNumber(normalizeDocumentNumber(e.target.value, documentType))} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Contacto (WhatsApp):</label>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Contacto (WhatsApp):</label>
                 <div className="contact-grid">
                   <div>
-                    <label htmlFor="phone-country-code" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: '#4b5563' }}>Número indicativo:</label>
+                    <label htmlFor="phone-country-code" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: 'var(--wd-muted)' }}>Número indicativo:</label>
                     <CallingCodeSelector id="phone-country-code" value={phoneCountryCode} onChange={setPhoneCountryCode} />
                   </div>
                   <div>
-                    <label htmlFor="whatsapp-number" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: '#4b5563' }}>Número de WhatsApp:</label>
+                    <label htmlFor="whatsapp-number" style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: 'var(--wd-muted)' }}>Número de WhatsApp:</label>
                     <input id="whatsapp-number" required type="tel" inputMode="numeric" autoComplete="tel-national" minLength={phoneCountryCode === '+57' ? 10 : 7} maxLength={15} pattern={phoneCountryCode === '+57' ? '3[0-9]{9}' : '[0-9]{7,15}'} title={phoneCountryCode === '+57' ? 'Ingresa un celular colombiano de 10 dígitos que empiece por 3.' : 'Ingresa entre 7 y 15 dígitos.'} placeholder="Ej.: 3134902197" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
 
               {/* Selector de Origen */}
-              <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
                 <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />
               </div>
 
               {/* Selector de Destino */}
-              <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
                 <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
               </div>
 
               <div>
-                <label htmlFor="trip-type" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de viaje:</label>
+                <label htmlFor="trip-type" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de viaje:</label>
                 <select
                   id="trip-type"
                   value={tripType}
@@ -554,7 +580,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                     setTripType(nextTripType);
                     if (nextTripType === 'ONE_WAY') setReturnDate('');
                   }}
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
                 >
                   <option value="ROUND_TRIP">Ida y vuelta</option>
                   <option value="ONE_WAY">Solo ida</option>
@@ -563,36 +589,36 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
               <div style={{ display: 'grid', gridTemplateColumns: tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '20px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Ida:</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Fecha de Ida:</label>
                   <input required type="date" min={getLocalDateString()} value={travelDate} onChange={e => setTravelDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
                 {tripType === 'ROUND_TRIP' && <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Fecha de Regreso:</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Fecha de Regreso:</label>
                   <input required type="date" min={travelDate || getLocalDateString()} value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>}
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Cantidad de personas que viajan (adultos y niños):</label>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Cantidad de personas que viajan (adultos y niños):</label>
                 <div className="travel-count-grid">
                   <div>
-                    <label htmlFor="adult-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Adultos:</label>
+                    <label htmlFor="adult-count" style={{ display: 'block', marginBottom: '6px', color: 'var(--wd-muted)' }}>Adultos:</label>
                     <input id="adult-count" required type="text" inputMode="numeric" minLength={1} pattern="[0-9]{1,2}" title={`Ingresa un número entero entre 1 y ${MAX_TRAVELERS - childCountValue}.`} value={adultCount} onChange={e => handleTravelerCountChange('adults', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                   <div>
-                    <label htmlFor="child-count" style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Niños:</label>
+                    <label htmlFor="child-count" style={{ display: 'block', marginBottom: '6px', color: 'var(--wd-muted)' }}>Niños:</label>
                     <input id="child-count" required type="text" inputMode="numeric" minLength={1} pattern="[0-9]{1,2}" title={`Ingresa un número entero entre 0 y ${MAX_TRAVELERS - (Number(adultCount) || 1)}.`} value={childCount} onChange={e => handleTravelerCountChange('children', e.target.value)} onBlur={normalizeTravelerCounts} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                   </div>
                 </div>
               </div>
 
               {childCountValue > 0 && (
-                <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  <strong style={{ display: 'block', marginBottom: '12px', color: '#374151' }}>Edad de los niños:</strong>
+                <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
+                  <strong style={{ display: 'block', marginBottom: '12px', color: 'var(--wd-ink)' }}>Edad de los niños:</strong>
                   <div className="travel-count-grid">
                     {childAges.slice(0, childCountValue).map((age, index) => (
                       <div key={index}>
-                        <label htmlFor={`child-age-${index}`} style={{ display: 'block', marginBottom: '6px', color: '#4b5563' }}>Edad del niño {index + 1}:</label>
+                        <label htmlFor={`child-age-${index}`} style={{ display: 'block', marginBottom: '6px', color: 'var(--wd-muted)' }}>Edad del niño {index + 1}:</label>
                         <input
                           id={`child-age-${index}`}
                           required
@@ -612,8 +638,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               )}
 
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#374151' }}>Tipo de servicio:</label>
-                <select required value={bookingType} onChange={e => setBookingType(e.target.value as BookingType)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de servicio:</label>
+                <select required value={bookingType} onChange={e => setBookingType(e.target.value as BookingType)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}>
                   <option value="TIQUETE">TIQUETE</option>
                   <option value="PAQUETE">PAQUETE</option>
                 </select>
@@ -622,7 +648,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                style={{ marginTop: '10px', width: '100%', padding: '15px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '10px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 14px rgba(227,179,29,0.35)' }}
+                className="btn-submit"
+                style={{ marginTop: '10px', width: '100%', padding: '15px', background: 'linear-gradient(135deg, var(--wd-gold-dark), var(--wd-gold))', color: 'var(--wd-navy)', border: 'none', borderRadius: '10px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 14px rgba(244, 189, 36, 0.35)', transition: 'transform 0.2s ease, filter 0.2s ease' }}
               >
                 {isSubmitting ? 'Guardando cotización...' : 'Enviar Solicitud de Cotización'}
               </button>
@@ -630,6 +657,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           )}
         </div>
       </div>
+      <SectionDivider fill="var(--wd-gold)" />
 
       <section className="closing-cta" aria-labelledby="closing-cta-title">
         <div>

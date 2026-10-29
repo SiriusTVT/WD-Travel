@@ -90,8 +90,8 @@ h3 {
   align-items: center;
   gap: 7px;
   padding: 9px 12px;
-  color: #2d60a8;
-  border: 1px solid #cbd5e1;
+  color: var(--wd-blue);
+  border: 1px solid var(--wd-line);
   border-radius: 9px;
   font-size: 0.9rem;
   font-weight: 800;
@@ -101,9 +101,9 @@ h3 {
 
 .community-links a:hover,
 .community-links a:focus-visible {
-  color: #173964;
-  background: #eef4ff;
-  border-color: #2d60a8;
+  color: var(--wd-navy);
+  background: var(--wd-sky);
+  border-color: var(--wd-blue);
 }
 
 .community-links svg {
@@ -723,7 +723,8 @@ input {
 }
 
 .packages-section {
-  background: linear-gradient(180deg, #edf6ff, #fffaf0);
+  position: relative;
+  background: linear-gradient(180deg, var(--wd-sky), var(--wd-cream));
 }
 
 .package-card {
@@ -777,4 +778,226 @@ input {
 
 .quote-card h2 {
   color: var(--wd-navy) !important;
+}
+
+/* ==========================================================================
+   WD Travel — Decoración temática de agencia de viajes
+   Se basa en las variables de paleta definidas en :root
+   ========================================================================== */
+
+/* Fondo de pantalla que llena toda la página */
+body {
+  background: linear-gradient(180deg, var(--wd-sky) 0%, var(--wd-cream) 58%, #ffffff 100%);
+  color: var(--wd-ink);
+}
+
+/* Fondo con trama de mapa en la sección de paquetes */
+.packages-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: 42px 42px;
+  background-image:
+    linear-gradient(var(--wd-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--wd-line) 1px, transparent 1px);
+  opacity: 0.55;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at 50% 40%, #0000 68%, #000 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #0000 68%, #000 78%);
+}
+
+/* Divisores decorativos entre secciones (ola suave) */
+.section-divider {
+  width: 100%;
+  height: 34px;
+  line-height: 0;
+  pointer-events: none;
+}
+.section-divider svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Iconos decorativos flotantes (tema de viaje) */
+.travel-decor {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.85;
+  filter: drop-shadow(0 4px 10px rgba(16, 47, 89, 0.10));
+  animation: wander 16s ease-in-out infinite alternate;
+}
+@keyframes wander {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(28px, -20px, 0); }
+}
+@media (max-width: 900px) {
+  .travel-decor { display: none; }
+}
+
+/* Títulos de sección con subrayado dorado */
+.wd-heading-accent {
+  position: relative;
+}
+.wd-heading-accent::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 5px;
+  background: linear-gradient(90deg, var(--wd-gold), var(--wd-gold-dark));
+  border-radius: 3px;
+  opacity: 0.95;
+}
+#about-title::after, #packages-title::after, #services-title::after, #presentation-title::after, #closing-cta-title::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 5px;
+  background: linear-gradient(90deg, var(--wd-gold), var(--wd-gold-dark));
+  border-radius: 3px;
+  opacity: 0.95;
+}
+#about-title, #packages-title, #services-title, #presentation-title, #closing-cta-title {
+  position: relative;
+}
+
+/* Hero: brillo solar decorativo */
+.hero-section::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    radial-gradient(700px circle at 88% 6%, rgba(244, 189, 36, 0.16), transparent 48%),
+    radial-gradient(520px circle at 6% 92%, rgba(61, 142, 216, 0.12), transparent 42%);
+  pointer-events: none;
+}
+.hero-cta {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hero-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(16, 47, 89, 0.32);
+}
+
+/* Badge de icono en tarjetas de servicio */
+.service-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--wd-cream), #eef6ff);
+  border: 2px solid var(--wd-line);
+  box-shadow: 0 6px 16px rgba(16, 47, 89, 0.08);
+  margin-bottom: 16px;
+}
+.service-icon::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--wd-blue-bright), var(--wd-navy));
+  opacity: 0.4;
+  filter: blur(10px);
+  z-index: -1;
+}
+
+/* Esquina decorativa en tarjetas de paquete */
+.package-card {
+  position: relative;
+}
+.package-card::before {
+  content: '✈';
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 1.5rem;
+  opacity: 0.10;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.package-card:hover::before {
+  opacity: 0.17;
+  transform: scale(1.15) rotate(6deg);
+}
+
+/* Sellos decorativos en la tarjeta de cotización */
+.quote-card::before,
+.quote-card::after {
+  content: '✈';
+  position: absolute;
+  font-size: 2.2rem;
+  opacity: 0.11;
+  pointer-events: none;
+}
+.quote-card::before { top: 12px; left: 16px; }
+.quote-card::after { bottom: 12px; right: 16px; transform: rotate(180deg); }
+
+/* Cierre con estilo de billete */
+.closing-cta {
+  position: relative;
+}
+.closing-cta::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border: 2px dashed rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+/* Botón de envío de cotización */
+.btn-submit {
+  position: relative;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.btn-submit:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.07);
+}
+
+/* Enfoque de campos de formulario con color de marca */
+input:focus,
+select:focus {
+  border-color: var(--wd-blue) !important;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(36, 104, 179, 0.15) !important;
+}
+
+/* Detalle del menú de navegación */
+.nav-main {
+  position: relative;
+}
+.nav-main::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--wd-gold), var(--wd-gold-dark), transparent);
+  opacity: 0.95;
+}
+.nav-main a {
+  color: #fff;
+}
+.nav-main a:hover {
+  color: var(--wd-gold);
+}
+.nav-main a:hover svg {
+  filter: drop-shadow(0 0 7px rgba(244, 189, 36, 0.55));
 }
