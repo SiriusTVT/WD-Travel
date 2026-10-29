@@ -36,15 +36,25 @@ const socialLinks = [
 
 interface NavbarProps {
   currentTab: 'home' | 'admin';
-  setCurrentTab: (tab: 'home' | 'admin') => void;
+  onGoHome: () => void;
+  onAdminLogout?: () => Promise<void>;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLogout }) => {
+  const handleAdminLogout = async () => {
+    try {
+      await onAdminLogout?.();
+    } catch (error) {
+      console.error('Error cerrando sesión administrativa:', error);
+      window.alert('No fue posible cerrar la sesión. Inténtalo nuevamente.');
+    }
+  };
+
   return (
     <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 30px', background: 'linear-gradient(110deg, #102f59, #2468b3)', color: '#fff', boxShadow: '0 4px 16px rgba(16,47,89,0.22)' }}>
       <button
         type="button"
-        onClick={() => setCurrentTab('home')}
+        onClick={onGoHome}
         aria-label="Volver a la página principal de WD Travel"
         style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: 0, border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}
       >
@@ -52,33 +62,40 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
         <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#fff' }}>WD Travel</h2>
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} aria-label="Redes sociales">
-          {socialLinks.map(socialLink => (
-            <a
-              key={socialLink.name}
-              href={socialLink.href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Visitar WD Travel en ${socialLink.name}`}
-              title={socialLink.name}
-              style={{ display: 'flex', color: '#fff', width: '32px', height: '32px', alignItems: 'center', justifyContent: 'center' }}
+        {currentTab === 'home' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} aria-label="Redes sociales">
+            {socialLinks.map(socialLink => (
+              <a
+                key={socialLink.name}
+                href={socialLink.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Visitar WD Travel en ${socialLink.name}`}
+                title={socialLink.name}
+                style={{ display: 'flex', color: '#fff', width: '32px', height: '32px', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <span style={{ display: 'flex', width: '22px', height: '22px' }}>{socialLink.icon}</span>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onGoHome}
+              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#E3B31D', color: '#2D60A8' }}
             >
-              <span style={{ display: 'flex', width: '22px', height: '22px' }}>{socialLink.icon}</span>
-            </a>
-          ))}
-        </div>
-        <button
-          onClick={() => setCurrentTab('home')}
-          style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: currentTab === 'home' ? '#E3B31D' : 'transparent', color: currentTab === 'home' ? '#2D60A8' : '#fff' }}
-        >
-          Cliente (Cotizar)
-        </button>
-        <button
-          onClick={() => setCurrentTab('admin')}
-          style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: currentTab === 'admin' ? '#E3B31D' : 'transparent', color: currentTab === 'admin' ? '#2D60A8' : '#fff' }}
-        >
-          Panel Administrador
-        </button>
+              Volver al sitio
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleAdminLogout()}
+              style={{ padding: '8px 16px', borderRadius: '20px', border: '1px solid #fff', cursor: 'pointer', fontWeight: 'bold', backgroundColor: 'transparent', color: '#fff' }}
+            >
+              Cerrar sesión
+            </button>
+          </>
+        )}
       </div>
     </nav>
   );

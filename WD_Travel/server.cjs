@@ -1,9 +1,13 @@
 const path = require('node:path');
+const { createHash, createHmac, timingSafeEqual } = require('node:crypto');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGO_KEY = process.env.MONGO_KEY;
+const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE;
+const ADMIN_SESSION_COOKIE = 'wdtravel_admin';
+const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 const QUOTE_NOTIFICATION_EMAIL = process.env.QUOTE_NOTIFICATION_EMAIL;
@@ -18,6 +22,98 @@ let quotesCollection;
 let salesCollection;
 
 app.use(express.json({ limit: '50kb' }));
+
+function getAdminSessionSignature(timestamp) {
+  return createHmac('sha256', ADMIN_ACCESS_CODE)
+    .update(timestamp)
+    .digest('hex');
+}
+
+function isAdminSessionValid(request) {
+  if (!ADMIN_ACCESS_CODE) return false;
+
+  const cookie = request.headers.cookie
+    ?.split(';')
+    .map(value => value.trim())
+    .find(value => value.startsWith(`${ADMIN_SESSION_COOKIE}=`));
+  const session = cookie?.slice(ADMIN_SESSION_COOKIE.length + 1);
+  const [timestamp, signature] = session?.split('.') || [];
+
+  if (!timestamp || !/^\d+$/.test(timestamp) || !signature || !/^[a-f\d]{64}$/i.test(signature)) {
+    return false;
+  }
+
+  const issuedAt = Number(timestamp);
+  const now = Math.floor(Date.now() / 1000);
+  if (issuedAt > now || now - issuedAt > ADMIN_SESSION_TTL_SECONDS) {
+    return false;
+  }
+
+  const expected = Buffer.from(getAdminSessionSignature(timestamp), 'hex');
+  const provided = Buffer.from(signature, 'hex');
+  return timingSafeEqual(expected, provided);
+}
+
+function requireAdmin(request, response, next) {
+  if (!ADMIN_ACCESS_CODE) {
+    response.status(503).json({ error: 'El acceso administrativo no está configurado.' });
+    return;
+  }
+
+  if (!isAdminSessionValid(request)) {
+    response.status(401).json({ error: 'Se requiere una sesión administrativa válida.' });
+    return;
+  }
+
+  next();
+}
+
+function getSecureCookieAttribute(request) {
+  const isHttps = process.env.NODE_ENV === 'production'
+    || request.headers['x-forwarded-proto'] === 'https';
+  return isHttps ? '; Secure' : '';
+}
+
+app.post('/api/admin/login', (request, response) => {
+  if (!ADMIN_ACCESS_CODE) {
+    response.status(503).json({ error: 'El acceso administrativo no está configurado.' });
+    return;
+  }
+
+  const submittedCode = request.body?.code;
+  if (typeof submittedCode !== 'string') {
+    response.status(400).json({ error: 'Ingresa el código de acceso.' });
+    return;
+  }
+
+  const expectedCodeHash = createHash('sha256').update(ADMIN_ACCESS_CODE).digest();
+  const submittedCodeHash = createHash('sha256').update(submittedCode).digest();
+  if (!timingSafeEqual(expectedCodeHash, submittedCodeHash)) {
+    response.status(401).json({ error: 'El código de acceso no es válido.' });
+    return;
+  }
+
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const secure = getSecureCookieAttribute(request);
+  response.setHeader(
+    'Set-Cookie',
+    `${ADMIN_SESSION_COOKIE}=${timestamp}.${getAdminSessionSignature(timestamp)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${secure}`
+  );
+  response.json({ authenticated: true });
+});
+
+app.get('/api/admin/session', requireAdmin, (request, response) => {
+  response.json({ authenticated: true });
+});
+
+app.post('/api/admin/logout', (request, response) => {
+  const secure = getSecureCookieAttribute(request);
+  response.setHeader(
+    'Set-Cookie',
+    `${ADMIN_SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`
+  );
+  response.json({ authenticated: false });
+});
 
 function escapeHtml(value) {
   return String(value)
@@ -135,7 +231,7 @@ function buildIdFilter(id) {
 }
 
 // Consultar cotizaciones pendientes
-app.get('/api/quotes', async (request, response) => {
+app.get('/api/quotes', requireAdmin, async (request, response) => {
   try {
     const docs = await quotesCollection
       .find({})
@@ -193,7 +289,7 @@ app.post('/api/quotes', async (request, response) => {
 });
 
 // Actualizar cotización existente
-app.put('/api/quotes/:id', async (request, response) => {
+app.put('/api/quotes/:id', requireAdmin, async (request, response) => {
   try {
     const id = request.params.id;
     const { _id, ...updateData } = request.body;
@@ -214,7 +310,7 @@ app.put('/api/quotes/:id', async (request, response) => {
 });
 
 // Eliminar cotización
-app.delete('/api/quotes/:id', async (request, response) => {
+app.delete('/api/quotes/:id', requireAdmin, async (request, response) => {
   try {
     const id = request.params.id;
     await quotesCollection.deleteMany(buildIdFilter(id));
@@ -226,7 +322,7 @@ app.delete('/api/quotes/:id', async (request, response) => {
 });
 
 // Consultar compras registradas / ventas realizadas
-app.get(['/api/sales', '/api/purchases'], async (request, response) => {
+app.get(['/api/sales', '/api/purchases'], requireAdmin, async (request, response) => {
   try {
     const docs = await salesCollection
       .find({})
@@ -248,7 +344,7 @@ app.get(['/api/sales', '/api/purchases'], async (request, response) => {
 });
 
 // Registrar compra / mover cotización al esquema de ventas_realizadas
-app.post(['/api/sales', '/api/purchases'], async (request, response) => {
+app.post(['/api/sales', '/api/purchases'], requireAdmin, async (request, response) => {
   const { quoteId, ...saleData } = request.body;
 
   if (
@@ -297,7 +393,7 @@ app.post(['/api/sales', '/api/purchases'], async (request, response) => {
 });
 
 // Actualizar compra existente
-app.put(['/api/sales/:id', '/api/purchases/:id'], async (request, response) => {
+app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, response) => {
   try {
     const id = request.params.id;
     const { _id, ...updateData } = request.body;
@@ -318,7 +414,7 @@ app.put(['/api/sales/:id', '/api/purchases/:id'], async (request, response) => {
 });
 
 // Eliminar compra
-app.delete(['/api/sales/:id', '/api/purchases/:id'], async (request, response) => {
+app.delete(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, response) => {
   try {
     const id = request.params.id;
     await salesCollection.deleteMany(buildIdFilter(id));

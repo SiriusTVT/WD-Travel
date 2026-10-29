@@ -13,12 +13,17 @@ En Render, configura estas variables de entorno:
 - **Build Command:** `npm run build`
 - **Start Command:** `npm start`
 - `MONGO_KEY`: cadena de conexión de MongoDB.
+- `ADMIN_ACCESS_CODE`: código secreto para iniciar sesión como administrador. Usa un código largo, único y difícil de adivinar; no uses `wdtraveladmin` como código real.
 - `RESEND_API_KEY`: clave API de Resend.
 - `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
 - `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.
 
-Para desarrollo local, inicia el servidor con `MONGO_KEY="..." npm start` después de
-construir el frontend. Vite redirige `/api` al servidor local en el puerto 3000.
+La página principal conserva el formulario público de cotización y no muestra controles de acceso administrativo. Para iniciar sesión, abre directamente `https://wd-travel.onrender.com/wdtraveladmin` e ingresa el valor configurado en `ADMIN_ACCESS_CODE`. La sesión se guarda en una cookie `HttpOnly` por un máximo de 8 horas; las consultas y modificaciones de cotizaciones y ventas requieren esa sesión. La creación pública de cotizaciones sigue disponible.
+
+Para desarrollo local, configura `MONGO_KEY` y `ADMIN_ACCESS_CODE` en el entorno e inicia
+el servidor con `npm start` después de construir el frontend. En PowerShell:
+`$env:MONGO_KEY = "..."`; `$env:ADMIN_ACCESS_CODE = "..."`; `npm start`. Vite redirige
+`/api` al servidor local en el puerto 3000.
 También debes configurar las tres variables de Resend anteriores; el remitente debe estar
 verificado en Resend. Si falta alguna o Resend rechaza/falla el envío, la cotización se
 guarda de todas formas y el sistema informa que no se pudo enviar el aviso.
