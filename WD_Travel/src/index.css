@@ -1666,3 +1666,113 @@ select:focus {
   line-height: 1;
 }
 
+
+/* Pie de página: marca, índice de secciones y redes en columna */
+.site-footer {
+  padding: 56px clamp(18px, 5vw, 72px) 24px;
+  color: rgba(255, 255, 255, 0.82);
+  background: var(--wd-navy);
+}
+
+.site-footer-grid {
+  display: grid;
+  gap: 40px;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.site-footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 1.25rem;
+}
+
+.site-footer-logo img {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.site-footer-logo strong {
+  color: var(--wd-gold);
+}
+
+.site-footer-brand p {
+  max-width: 340px;
+  margin: 16px 0 18px;
+  line-height: 1.6;
+}
+
+.site-footer-whatsapp {
+  display: inline-flex;
+  padding: 10px 18px;
+  color: var(--wd-navy) !important;
+  background: var(--wd-lime);
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-footer-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.site-footer-column h3 {
+  margin: 0 0 4px;
+  color: var(--wd-gold);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.site-footer-column a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.site-footer-column a:hover {
+  color: #fff;
+}
+
+.site-footer-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+
+.site-footer-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.site-footer-copy {
+  margin: 40px auto 0;
+  max-width: 1120px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .site-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
