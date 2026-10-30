@@ -254,16 +254,10 @@ const packageCategories: PackageCategory[] = [
 
 const HERO_ROTATION_MS = 2 * 60 * 1000;
 
-// Destinos únicos de los planes, en el orden en que aparecen en la página.
-const heroDestinations = packageCategories
-  .flatMap(category => category.packages)
-  .reduce<{ name: string; image: string }[]>((destinations, travelPackage) => {
-    const name = travelPackage.destination.split(' · ')[0];
-    if (!destinations.some(destination => destination.name === name)) {
-      destinations.push({ name, image: travelPackage.image });
-    }
-    return destinations;
-  }, []);
+// Una portada por categoría de planes, con la foto de su primer paquete.
+const heroCategories = packageCategories
+  .filter(category => category.packages.length > 0)
+  .map(category => ({ name: category.title, image: category.packages[0].image }));
 
 const travelServices = [
   {
@@ -303,17 +297,17 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const formRef = useRef<HTMLDivElement>(null);
   // Cada carga de la página empieza con un destino distinto al azar.
   const [heroDestinationIndex, setHeroDestinationIndex] = useState(() =>
-    Math.floor(Math.random() * heroDestinations.length)
+    Math.floor(Math.random() * heroCategories.length)
   );
 
   useEffect(() => {
     const rotationId = setInterval(() => {
-      setHeroDestinationIndex(index => (index + 1) % heroDestinations.length);
+      setHeroDestinationIndex(index => (index + 1) % heroCategories.length);
     }, HERO_ROTATION_MS);
     return () => clearInterval(rotationId);
   }, []);
 
-  const heroDestination = heroDestinations[heroDestinationIndex];
+  const heroDestination = heroCategories[heroDestinationIndex];
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -518,7 +512,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         )}
         {heroDestination && (
           <div className="hero-destination-label" aria-live="polite">
-            <span>Destino destacado</span>
+            <span>Categoría destacada</span>
             <strong>{heroDestination.name}</strong>
           </div>
         )}
