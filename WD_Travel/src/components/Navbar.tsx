@@ -1,7 +1,7 @@
 import React from 'react';
 import logo from '../assets/logo.png';
 
-const socialLinks = [
+export const socialLinks = [
   {
     name: 'Instagram',
     href: 'https://www.instagram.com/w.d.travel3?igsh=MW80enJqZTdnanp1NQ%3D%3D',

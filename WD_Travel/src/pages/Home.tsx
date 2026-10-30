@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
+import { socialLinks } from '../components/Navbar';
+import logo from '../assets/logo.png';
 import { CallingCodeSelector } from '../components/CallingCodeSelector.tsx';
 import type { Booking } from '../data/mockData';
 import { PACKAGE_TYPES, type PackageType } from '../data/packageTypes';
@@ -918,17 +920,48 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <a className="whatsapp-button" href="https://wa.me/573332688678" target="_blank" rel="noreferrer">
             Hablar con un asesor por WhatsApp
           </a>
-          <a className="social-button instagram-button" href="https://www.instagram.com/w.d.travel3/" target="_blank" rel="noreferrer">
-            Síguenos en Instagram @w.d.travel3
-          </a>
-          <a className="social-button tiktok-button" href="https://www.tiktok.com/@wdtravel6?_r=1&_t=ZS-94le7Y8Db3i" target="_blank" rel="noreferrer">
-            Síguenos en TikTok @wdtravel6
-          </a>
-          <a className="social-button facebook-button" href="https://www.facebook.com/people/WDTravel/61574445834395/" target="_blank" rel="noreferrer">
-            Síguenos en Facebook WD Travel
-          </a>
         </div>
       </section>
+
+      <footer className="site-footer">
+        <div className="site-footer-grid">
+          <div className="site-footer-brand">
+            <div className="site-footer-logo">
+              <img src={logo} alt="" />
+              <span>W.D <strong>Travel</strong></span>
+            </div>
+            <p>Viajes y asesoría migratoria, con respaldo real en cada paso del viaje.</p>
+            <a className="site-footer-whatsapp" href="https://wa.me/573332688678" target="_blank" rel="noreferrer">
+              Escríbenos por WhatsApp
+            </a>
+          </div>
+
+          <nav className="site-footer-column" aria-label="Secciones de la página">
+            <h3>Secciones</h3>
+            <a href="#about-section">Nosotros</a>
+            <a href="#packages-section">Paquetes</a>
+            <a href="#services-section">Servicios</a>
+            <a href="#quote-form">Cotizar viaje</a>
+          </nav>
+
+          <div className="site-footer-column">
+            <h3>Redes</h3>
+            {socialLinks.map(socialLink => (
+              <a
+                key={socialLink.name}
+                href={socialLink.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Visitar WD Travel en ${socialLink.name}`}
+              >
+                <span className="site-footer-icon">{socialLink.icon}</span>
+                {socialLink.name}
+              </a>
+            ))}
+          </div>
+        </div>
+        <p className="site-footer-copy">© {new Date().getFullYear()} W.D Travel. Todos los derechos reservados.</p>
+      </footer>
     </div>
   );
 };
