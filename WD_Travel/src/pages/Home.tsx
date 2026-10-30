@@ -298,10 +298,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notificationSent, setNotificationSent] = useState<boolean | null>(null);
-  const [isHeroVideoFading, setIsHeroVideoFading] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
-  const heroVideoRef = useRef<HTMLVideoElement>(null);
-  const heroVideoFadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [heroDestinationIndex, setHeroDestinationIndex] = useState(0);
 
   useEffect(() => {
@@ -403,22 +400,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     script.onload = () => window.instgrm?.Embeds?.process();
     document.body.appendChild(script);
   }, []);
-
-  useEffect(() => () => {
-    if (heroVideoFadeTimeoutRef.current) clearTimeout(heroVideoFadeTimeoutRef.current);
-  }, []);
-
-  const handleHeroVideoEnd = () => {
-    setIsHeroVideoFading(true);
-    heroVideoFadeTimeoutRef.current = setTimeout(() => {
-      const video = heroVideoRef.current;
-      if (video) {
-        video.currentTime = 0;
-        void video.play();
-      }
-      setIsHeroVideoFading(false);
-    }, 500);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -576,21 +557,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         </div>
       </section>
       <SectionDivider fill="var(--wd-cream)" />
-
-      <section className="showcase-video-section" aria-label="Video de W.D Travel">
-        <video
-          ref={heroVideoRef}
-          className={`showcase-video${isHeroVideoFading ? ' hero-video-fading' : ''}`}
-          autoPlay
-          muted
-          playsInline
-          preload="metadata"
-          onEnded={handleHeroVideoEnd}
-          aria-hidden="true"
-        >
-          <source src="/wd-travel-hero.mp4" type="video/mp4" />
-        </video>
-      </section>
 
       <section className="presentation-section" aria-labelledby="presentation-title">
         <div className="presentation-copy">
