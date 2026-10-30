@@ -505,6 +505,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           autoPlay
           muted
           playsInline
+          preload="metadata"
           onEnded={handleHeroVideoEnd}
           aria-hidden="true"
         >
