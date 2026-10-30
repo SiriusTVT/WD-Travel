@@ -1776,3 +1776,28 @@ select:focus {
     gap: 32px;
   }
 }
+
+/* Tarjetas de paquetes: destino arriba y etiquetas en fila debajo */
+.package-image {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 230px;
+}
+
+.package-destination {
+  order: -1;
+  max-width: 100%;
+  line-height: 1.1;
+}
+
+.package-badge {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
