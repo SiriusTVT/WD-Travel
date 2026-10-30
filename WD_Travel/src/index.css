@@ -1666,24 +1666,3 @@ select:focus {
   line-height: 1;
 }
 
-/* Video de marca, ahora en su propia sección */
-.showcase-video-section {
-  position: relative;
-  overflow: hidden;
-  padding: 48px clamp(18px, 5vw, 72px);
-  background: var(--wd-navy);
-}
-
-.showcase-video {
-  display: block;
-  width: 100%;
-  max-height: 80vh;
-  border-radius: 22px;
-  object-fit: cover;
-  box-shadow: 0 20px 50px rgba(16, 47, 89, 0.3);
-  transition: opacity 0.5s ease-in-out;
-}
-
-.showcase-video.hero-video-fading {
-  opacity: 0;
-}
