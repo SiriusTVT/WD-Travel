@@ -254,10 +254,14 @@ const packageCategories: PackageCategory[] = [
 
 const HERO_ROTATION_MS = 2 * 60 * 1000;
 
-// Una portada por categoría de planes, con la foto de su primer paquete.
-const heroCategories = packageCategories
-  .filter(category => category.packages.length > 0)
-  .map(category => ({ name: category.title, image: category.packages[0].image }));
+// Cada paquete de los planes tiene su portada, con el nombre de su categoría.
+const heroPackages = packageCategories.flatMap(category =>
+  category.packages.map(travelPackage => ({
+    category: category.title,
+    name: travelPackage.title,
+    image: travelPackage.image,
+  }))
+);
 
 const travelServices = [
   {
@@ -297,17 +301,17 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const formRef = useRef<HTMLDivElement>(null);
   // Cada carga de la página empieza con un destino distinto al azar.
   const [heroDestinationIndex, setHeroDestinationIndex] = useState(() =>
-    Math.floor(Math.random() * heroCategories.length)
+    Math.floor(Math.random() * heroPackages.length)
   );
 
   useEffect(() => {
     const rotationId = setInterval(() => {
-      setHeroDestinationIndex(index => (index + 1) % heroCategories.length);
+      setHeroDestinationIndex(index => (index + 1) % heroPackages.length);
     }, HERO_ROTATION_MS);
     return () => clearInterval(rotationId);
   }, []);
 
-  const heroDestination = heroCategories[heroDestinationIndex];
+  const heroDestination = heroPackages[heroDestinationIndex];
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -512,7 +516,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         )}
         {heroDestination && (
           <div className="hero-destination-label" aria-live="polite">
-            <span>Categoría destacada</span>
+            <span>{heroDestination.category}</span>
             <strong>{heroDestination.name}</strong>
           </div>
         )}
