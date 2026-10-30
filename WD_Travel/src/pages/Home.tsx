@@ -250,6 +250,19 @@ const packageCategories: PackageCategory[] = [
   }
 ];
 
+const HERO_ROTATION_MS = 5 * 60 * 1000;
+
+// Destinos únicos de los planes, en el orden en que aparecen en la página.
+const heroDestinations = packageCategories
+  .flatMap(category => category.packages)
+  .reduce<{ name: string; image: string }[]>((destinations, travelPackage) => {
+    const name = travelPackage.destination.split(' · ')[0];
+    if (!destinations.some(destination => destination.name === name)) {
+      destinations.push({ name, image: travelPackage.image });
+    }
+    return destinations;
+  }, []);
+
 const travelServices = [
   {
     title: 'Paquetes vacacionales a medida',
@@ -289,6 +302,16 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const formRef = useRef<HTMLDivElement>(null);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
   const heroVideoFadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [heroDestinationIndex, setHeroDestinationIndex] = useState(0);
+
+  useEffect(() => {
+    const rotationId = setInterval(() => {
+      setHeroDestinationIndex(index => (index + 1) % heroDestinations.length);
+    }, HERO_ROTATION_MS);
+    return () => clearInterval(rotationId);
+  }, []);
+
+  const heroDestination = heroDestinations[heroDestinationIndex];
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -499,18 +522,20 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   return (
     <div style={{ minHeight: '100vh' }}>
       <section className="hero-section" aria-labelledby="hero-title">
-        <video
-          ref={heroVideoRef}
-          className={`hero-video${isHeroVideoFading ? ' hero-video-fading' : ''}`}
-          autoPlay
-          muted
-          playsInline
-          preload="metadata"
-          onEnded={handleHeroVideoEnd}
-          aria-hidden="true"
-        >
-          <source src="/wd-travel-hero.mp4" type="video/mp4" />
-        </video>
+        {heroDestination && (
+          <div
+            key={heroDestination.name}
+            className="hero-destination-cover"
+            style={{ backgroundImage: `url('${heroDestination.image}')` }}
+            aria-hidden="true"
+          />
+        )}
+        {heroDestination && (
+          <div className="hero-destination-label" aria-live="polite">
+            <span>Destino destacado</span>
+            <strong>{heroDestination.name}</strong>
+          </div>
+        )}
         <div className="hero-content">
           <span className="hero-eyebrow">W.D Travel · Agencia de viajes</span>
           <h1 id="hero-title" className="hero-title">El mundo es grande. <em>Tu viaje,</em> a tu medida.</h1>
@@ -551,6 +576,21 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         </div>
       </section>
       <SectionDivider fill="var(--wd-cream)" />
+
+      <section className="showcase-video-section" aria-label="Video de W.D Travel">
+        <video
+          ref={heroVideoRef}
+          className={`showcase-video${isHeroVideoFading ? ' hero-video-fading' : ''}`}
+          autoPlay
+          muted
+          playsInline
+          preload="metadata"
+          onEnded={handleHeroVideoEnd}
+          aria-hidden="true"
+        >
+          <source src="/wd-travel-hero.mp4" type="video/mp4" />
+        </video>
+      </section>
 
       <section className="presentation-section" aria-labelledby="presentation-title">
         <div className="presentation-copy">
