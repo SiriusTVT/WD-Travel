@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import logo from '../assets/logo.png';
 
 export const socialLinks = [
@@ -41,6 +41,20 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLogout }) => {
+  // Al bajar más allá de la portada, la barra cambia a un fondo claro.
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    if (currentTab !== 'home') return;
+
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > window.innerHeight * 0.8);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentTab]);
+
   const handleAdminLogout = async () => {
     try {
       await onAdminLogout?.();
@@ -51,7 +65,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLog
   };
 
   return (
-    <nav className={`nav-main ${currentTab === 'home' ? 'nav-home' : 'nav-admin'}`} aria-label="Navegación principal">
+    <nav
+      className={`nav-main ${currentTab === 'home' ? 'nav-home' : 'nav-admin'}${isScrolled && currentTab === 'home' ? ' nav-scrolled' : ''}`}
+      aria-label="Navegación principal"
+    >
       <button
         type="button"
         className="nav-brand"
