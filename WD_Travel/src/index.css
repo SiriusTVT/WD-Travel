@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap');
 
 * {
   box-sizing: border-box;
@@ -1515,4 +1515,175 @@ select:focus {
 }
 @media (prefers-reduced-motion: reduce) {
   .package-card, .service-card, .hero-cta, .nav-quote-link { transition: none !important; }
+}
+
+/* -------------------------------------------------------------------------- */
+/* W.D Travel — modern pass (lime accents, serif italics, round card arrows)  */
+/* Visual-only overrides; copy, prices and booking logic are unchanged.       */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  --wd-lime: #d4e26a;
+  --wd-lime-dark: #b9cc4e;
+  --wd-serif: 'Instrument Serif', 'Playfair Display', Georgia, serif;
+}
+
+.hero-title em,
+.packages-heading h2 em,
+.about-content h2 em,
+.services-heading h2 em,
+.section-title em {
+  font-family: var(--wd-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.hero-title em {
+  color: var(--wd-lime);
+}
+
+.hero-eyebrow,
+.hero-trust-line span:first-child {
+  color: var(--wd-lime);
+}
+
+.hero-eyebrow::before {
+  background: var(--wd-lime);
+}
+
+.hero-section button.hero-cta,
+.nav-quote-link {
+  color: var(--wd-navy) !important;
+  background: var(--wd-lime) !important;
+  border-color: var(--wd-lime) !important;
+  box-shadow: 0 12px 28px rgba(212, 226, 106, 0.22) !important;
+}
+
+.hero-section button.hero-cta:hover,
+.nav-quote-link:hover {
+  background: var(--wd-lime-dark) !important;
+  color: var(--wd-navy) !important;
+}
+
+.nav-quote-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.package-card {
+  border-radius: 22px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.package-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 36px rgba(23, 57, 100, 0.16);
+}
+
+.package-image::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 28, 52, 0) 35%, rgba(10, 28, 52, 0.72) 100%);
+  content: '';
+}
+
+.package-image > * {
+  position: relative;
+  z-index: 1;
+}
+
+.package-destination {
+  font-family: var(--wd-serif);
+  font-size: 2.1rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.package-badge {
+  background: #fff;
+  color: var(--wd-navy);
+}
+
+.package-button {
+  border-radius: 999px;
+  background: var(--wd-navy) !important;
+}
+
+.package-button:hover {
+  background: var(--wd-blue) !important;
+}
+
+/* Portada con destinos rotativos (cambia cada 5 minutos) */
+.hero-destination-cover {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  animation: hero-cover-fade 1.2s ease-in-out;
+}
+
+@keyframes hero-cover-fade {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.hero-destination-label {
+  position: absolute;
+  z-index: 2;
+  right: clamp(18px, 5vw, 72px);
+  bottom: clamp(70px, 12vh, 120px);
+  display: grid;
+  gap: 4px;
+  color: #fff;
+  text-align: right;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.hero-destination-label span {
+  color: var(--wd-lime);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.hero-destination-label strong {
+  font-family: var(--wd-serif);
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* Video de marca, ahora en su propia sección */
+.showcase-video-section {
+  position: relative;
+  overflow: hidden;
+  padding: 48px clamp(18px, 5vw, 72px);
+  background: var(--wd-navy);
+}
+
+.showcase-video {
+  display: block;
+  width: 100%;
+  max-height: 80vh;
+  border-radius: 22px;
+  object-fit: cover;
+  box-shadow: 0 20px 50px rgba(16, 47, 89, 0.3);
+  transition: opacity 0.5s ease-in-out;
+}
+
+.showcase-video.hero-video-fading {
+  opacity: 0;
 }
