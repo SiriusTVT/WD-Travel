@@ -1801,3 +1801,38 @@ select:focus {
   padding: 6px 12px;
   white-space: nowrap;
 }
+
+/* Barra superior: cambia a fondo claro al bajar por las demás secciones */
+.nav-main {
+  transition: background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.nav-main.nav-scrolled {
+  background: rgba(255, 250, 240, 0.96) !important;
+  color: var(--wd-navy);
+  box-shadow: 0 8px 26px rgba(16, 47, 89, 0.12) !important;
+  border-bottom-color: var(--wd-line);
+}
+
+.nav-main.nav-scrolled .nav-brand > span,
+.nav-main.nav-scrolled .nav-links a,
+.nav-main.nav-scrolled .nav-socials a {
+  color: var(--wd-navy);
+}
+
+.nav-main.nav-scrolled .nav-brand strong {
+  color: var(--wd-blue);
+}
+
+.nav-main.nav-scrolled .nav-links a:hover {
+  color: var(--wd-blue);
+}
+
+.nav-main.nav-scrolled .nav-socials a {
+  border-color: var(--wd-line);
+  background: #fff;
+}
+
+.nav-main.nav-scrolled .nav-quote-link {
+  color: var(--wd-navy) !important;
+}

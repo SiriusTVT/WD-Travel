@@ -252,7 +252,7 @@ const packageCategories: PackageCategory[] = [
   }
 ];
 
-const HERO_ROTATION_MS = 5 * 60 * 1000;
+const HERO_ROTATION_MS = 2 * 60 * 1000;
 
 // Destinos únicos de los planes, en el orden en que aparecen en la página.
 const heroDestinations = packageCategories
@@ -301,7 +301,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notificationSent, setNotificationSent] = useState<boolean | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
-  const [heroDestinationIndex, setHeroDestinationIndex] = useState(0);
+  // Cada carga de la página empieza con un destino distinto al azar.
+  const [heroDestinationIndex, setHeroDestinationIndex] = useState(() =>
+    Math.floor(Math.random() * heroDestinations.length)
+  );
 
   useEffect(() => {
     const rotationId = setInterval(() => {
