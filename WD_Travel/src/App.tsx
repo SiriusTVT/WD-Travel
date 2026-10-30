@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
-import { AdminLogin } from './pages/AdminLogin';
-import { CreateCount } from './pages/CreateCount';
 import { Home } from './pages/Home';
-import { Admin } from './pages/Admin';
 import { type Booking } from './data/mockData';
+
+// Las rutas administrativas se cargan solo cuando se necesitan, para no
+// descargar su código en la página pública.
+const AdminLogin = lazy(() => import('./pages/AdminLogin').then(module => ({ default: module.AdminLogin })));
+const CreateCount = lazy(() => import('./pages/CreateCount').then(module => ({ default: module.CreateCount })));
+const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 
 const ADMIN_PATH = '/wdtraveladmin';
 const CREATE_COUNT_PATH = '/createcount';
@@ -106,7 +109,11 @@ function App() {
   }, [isAdminRoute, loadAdminData]);
 
   if (isCreateCountRoute) {
-    return <CreateCount onBackToSite={() => navigate('/')} />;
+    return (
+      <Suspense fallback={null}>
+        <CreateCount onBackToSite={() => navigate('/')} />
+      </Suspense>
+    );
   }
 
   if (isAdminRoute && adminRole) {
@@ -117,17 +124,21 @@ function App() {
           onGoHome={() => navigate('/')}
           onAdminLogout={handleAdminLogout}
         />
-        <Admin bookings={bookings} setBookings={setBookings} role={adminRole} />
+        <Suspense fallback={null}>
+          <Admin bookings={bookings} setBookings={setBookings} role={adminRole} />
+        </Suspense>
       </div>
     );
   }
 
   if (isAdminRoute) {
     return (
-      <AdminLogin
-        onLogin={handleAdminLogin}
-        onBackToSite={() => navigate('/')}
-      />
+      <Suspense fallback={null}>
+        <AdminLogin
+          onLogin={handleAdminLogin}
+          onBackToSite={() => navigate('/')}
+        />
+      </Suspense>
     );
   }
 
