@@ -51,52 +51,48 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onGoHome, onAdminLog
   };
 
   return (
-    <nav className="nav-main" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 30px', background: 'linear-gradient(110deg, #102f59, #2468b3)', color: '#fff', boxShadow: '0 4px 16px rgba(16,47,89,0.22)' }}>
+    <nav className={`nav-main ${currentTab === 'home' ? 'nav-home' : 'nav-admin'}`} aria-label="Navegación principal">
       <button
         type="button"
+        className="nav-brand"
         onClick={onGoHome}
         aria-label="Volver a la página principal de WD Travel"
-        style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: 0, border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}
       >
-        <img src={logo} alt="" style={{ height: '45px', objectFit: 'contain', backgroundColor: '#fff', padding: '4px', borderRadius: '6px' }} />
-        <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#fff' }}>WD Travel</h2>
+        <img src={logo} alt="" />
+        <span>W.D <strong>Travel</strong></span>
       </button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-        {currentTab === 'home' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} aria-label="Redes sociales">
-            {socialLinks.map(socialLink => (
-              <a
-                key={socialLink.name}
-                href={socialLink.href}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Visitar WD Travel en ${socialLink.name}`}
-                title={socialLink.name}
-                style={{ display: 'flex', width: '32px', height: '32px', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <span style={{ display: 'flex', width: '22px', height: '22px' }}>{socialLink.icon}</span>
-              </a>
-            ))}
+
+      {currentTab === 'home' ? (
+        <>
+          <div className="nav-links">
+            <a href="#about-section">Nosotros</a>
+            <a href="#packages-section">Paquetes</a>
+            <a href="#services-section">Servicios</a>
           </div>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onGoHome}
-              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', background: 'linear-gradient(135deg, var(--wd-gold-dark), var(--wd-gold))', color: 'var(--wd-navy)', transition: 'filter 0.2s ease' }}
-            >
-              Volver al sitio
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleAdminLogout()}
-              style={{ padding: '8px 16px', borderRadius: '20px', border: '1px solid #fff', cursor: 'pointer', fontWeight: 'bold', backgroundColor: 'transparent', color: '#fff' }}
-            >
-              Cerrar sesión
-            </button>
-          </>
-        )}
-      </div>
+          <div className="nav-actions">
+            <div className="nav-socials" aria-label="Redes sociales">
+              {socialLinks.map(socialLink => (
+                <a
+                  key={socialLink.name}
+                  href={socialLink.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Visitar WD Travel en ${socialLink.name}`}
+                  title={socialLink.name}
+                >
+                  <span>{socialLink.icon}</span>
+                </a>
+              ))}
+            </div>
+            <a className="nav-quote-link" href="#quote-form">Cotizar viaje <span aria-hidden="true">↗</span></a>
+          </div>
+        </>
+      ) : (
+        <div className="nav-actions">
+          <button type="button" className="nav-admin-button" onClick={onGoHome}>Volver al sitio</button>
+          <button type="button" className="nav-admin-button nav-admin-logout" onClick={() => void handleAdminLogout()}>Cerrar sesión</button>
+        </div>
+      )}
     </nav>
   );
 };

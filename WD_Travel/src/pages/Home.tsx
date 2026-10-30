@@ -498,12 +498,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <section className="hero-section" style={{
-        color: '#ffffff',
-        padding: '80px 20px',
-        textAlign: 'center',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-      }}>
+      <section className="hero-section" aria-labelledby="hero-title">
         <video
           ref={heroVideoRef}
           className={`hero-video${isHeroVideoFading ? ' hero-video-fading' : ''}`}
@@ -515,28 +510,15 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         >
           <source src="/wd-travel-hero.mp4" type="video/mp4" />
         </video>
-        <div className="hero-content" style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <button
-            onClick={scrollToForm}
-            className="hero-cta"
-            style={{
-              padding: '16px 36px',
-              background: 'linear-gradient(135deg, var(--wd-blue), var(--wd-navy))',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '50px',
-              fontSize: '1.2rem',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '0 8px 20px rgba(16, 47, 89, 0.25)',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-            }}
-          >
-            Cotizar mi viaje ahora
-          </button>
-          <button type="button" className="hero-secondary-button" onClick={() => document.querySelector('.packages-section')?.scrollIntoView({ behavior: 'smooth' })}>
-            Explorar paquetes y servicios
-          </button>
+        <div className="hero-content">
+          <span className="hero-eyebrow">W.D Travel · Agencia de viajes</span>
+          <h1 id="hero-title" className="hero-title">El mundo es grande. <em>Tu viaje,</em> a tu medida.</h1>
+          <p className="hero-description">Vacaciones, un nuevo comienzo en Europa o una escapada cerca de casa: te acompañamos en cada paso, antes, durante y después.</p>
+          <div className="hero-actions">
+            <button type="button" onClick={scrollToForm} className="hero-cta">Cotiza tu viaje <span aria-hidden="true">→</span></button>
+            <button type="button" className="hero-secondary-button" onClick={() => document.querySelector('.packages-section')?.scrollIntoView({ behavior: 'smooth' })}>Explorar paquetes</button>
+          </div>
+          <div className="hero-trust-line"><span>✦</span> Asesoría personalizada <span>·</span> Respaldo real en cada etapa</div>
         </div>
         <button
           type="button"
@@ -549,7 +531,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       </section>
       <SectionDivider fill="var(--wd-sky)" />
 
-      <section className="about-section" aria-labelledby="about-title">
+      <section className="about-section" id="about-section" aria-labelledby="about-title">
         <div className="about-content">
           <span className="section-eyebrow">Nuestra esencia</span>
           <h2 id="about-title">Más que una agencia: tu aliado en cada paso del viaje</h2>
@@ -623,7 +605,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         </div>
       </section>
 
-      <section className="packages-section" aria-labelledby="packages-title">
+      <section className="packages-section" id="packages-section" aria-labelledby="packages-title">
         <div className="packages-heading">
           <span className="section-eyebrow">Ofertas WD Travel</span>
           <h2 id="packages-title">Encuentra el paquete ideal para ti</h2>
@@ -682,7 +664,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       </section>
       <SectionDivider fill="var(--wd-gold)" />
 
-      <section className="services-section" aria-labelledby="services-title">
+      <section className="services-section" id="services-section" aria-labelledby="services-title">
         <div className="packages-heading">
           <span className="section-eyebrow">Viaja con tranquilidad</span>
           <h2 id="services-title">Todo lo que necesitas para disfrutar el camino</h2>
@@ -699,7 +681,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       </section>
       <SectionDivider fill="var(--wd-sky)" />
 
-      <div ref={formRef} style={{ padding: '40px 20px 60px 20px' }}>
+      <div ref={formRef} id="quote-form" className="quote-section" style={{ padding: '40px 20px 60px 20px' }}>
         <div className="quote-card" style={{ maxWidth: '850px', margin: '0 auto', borderRadius: '18px' }}>
 
           {!submitted && (
