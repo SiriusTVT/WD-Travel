@@ -551,6 +551,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <p>
             Nuestra misión es conectar a personas y familias con sus destinos ideales brindando respaldo real de principio a fin. Ya sea que busques una escapada vacacional, apoyo en reubicación internacional o la tranquilidad de contar con asistencia integral ante cualquier imprevisto, en <strong>W.D Travel</strong> viajas con la certeza de tener un equipo experto cuidando cada detalle.
           </p>
+          <a className="rnt-badge" href="/documents/certificado-rnt.pdf" target="_blank" rel="noreferrer">
+            <strong>Agencia de viajes registrada en el RNT</strong>
+            <span>Vigente hasta 31/03/2027 · Ver certificado</span>
+          </a>
         </div>
         <div className="about-highlights">
           <strong>Viaja con respaldo real</strong>
@@ -934,6 +938,9 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             <p>Viajes y asesoría migratoria, con respaldo real en cada paso del viaje.</p>
             <a className="site-footer-whatsapp" href="https://wa.me/573332688678" target="_blank" rel="noreferrer">
               Escríbenos por WhatsApp
+            </a>
+            <a className="site-footer-certificate" href="/documents/certificado-rnt.pdf" target="_blank" rel="noreferrer">
+              Certificado RNT · vigente hasta 31/03/2027
             </a>
           </div>
 
