@@ -1434,6 +1434,48 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(36,104,179,.12);
   outline: none;
 }
+.location-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.location-selector-field {
+  position: relative;
+  min-width: 0;
+}
+.location-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(16, 47, 89, .16);
+}
+.location-suggestion {
+  min-height: 44px;
+  padding: 11px 14px;
+  color: var(--wd-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.location-suggestion + .location-suggestion {
+  border-top: 1px solid #edf1f5;
+}
+.location-suggestion:hover,
+.location-suggestion[aria-selected="true"] {
+  background: #f2f7fb;
+}
+.location-suggestion-empty {
+  padding: 12px 14px;
+  color: #617187;
+}
 .quote-card label { color: #34465c !important; }
 .quote-card .btn-submit {
   min-height: 52px;
@@ -1480,6 +1522,7 @@ select:focus {
 }
 @media (max-width: 640px) {
   .nav-main { min-height: 70px; padding: 10px 16px !important; }
+  .location-selector-grid { grid-template-columns: minmax(0, 1fr); }
   .nav-brand img { width: 40px; height: 40px; }
   .nav-brand > span { font-size: 1.05rem; }
   .nav-links { gap: 18px; justify-content: flex-start; overflow-x: auto; }
