@@ -9,6 +9,7 @@ interface AdminLoginProps {
 export const AdminLogin: FC<AdminLoginProps> = ({ onLogin, onBackToSite }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -21,7 +22,7 @@ export const AdminLogin: FC<AdminLoginProps> = ({ onLogin, onBackToSite }) => {
       const response = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, code })
       });
       const result: { error?: string; role?: 'admin' | 'advisor' } = await response.json();
       if (!response.ok) {
@@ -68,6 +69,21 @@ export const AdminLogin: FC<AdminLoginProps> = ({ onLogin, onBackToSite }) => {
             onChange={event => setPassword(event.target.value)}
             style={{ width: '100%', padding: '11px', borderRadius: '8px' }}
           />
+          <label htmlFor="admin-code" style={{ display: 'block', margin: '16px 0 6px', color: '#374151', fontWeight: 700 }}>Código de verificación</label>
+          <input
+            id="admin-code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9 ]{6,7}"
+            maxLength={7}
+            placeholder="000000"
+            required
+            value={code}
+            onChange={event => setCode(event.target.value)}
+            style={{ width: '100%', padding: '11px', borderRadius: '8px', letterSpacing: '0.3em', textAlign: 'center' }}
+          />
+          <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.85rem' }}>Abre Google Authenticator y escribe el código de 6 dígitos de WD Travel.</p>
           {errorMessage && <p role="alert" style={{ marginTop: '10px', color: '#b91c1c' }}>{errorMessage}</p>}
           <button type="submit" disabled={isSubmitting} style={{ width: '100%', marginTop: '20px', padding: '12px 16px', border: 0, borderRadius: '8px', color: '#fff', background: '#2d60a8', fontWeight: 700, cursor: 'pointer' }}>
             {isSubmitting ? 'Verificando...' : 'Entrar'}

@@ -9,6 +9,14 @@ const {
 const { promisify } = require('node:util');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
+const QRCode = require('qrcode');
+const {
+  buildOtpauthUrl,
+  decryptSecret,
+  encryptSecret,
+  generateTotpSecret,
+  verifyTotp
+} = require('./totp.cjs');
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGO_KEY = process.env.MONGO_KEY;
@@ -26,9 +34,13 @@ const scryptAsync = promisify(scrypt);
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 const QUOTE_NOTIFICATION_EMAIL = process.env.QUOTE_NOTIFICATION_EMAIL;
+const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY;
 
 if (!MONGO_KEY) {
   throw new Error('La variable de entorno MONGO_KEY no está configurada.');
+}
+if (!TOTP_ENCRYPTION_KEY || TOTP_ENCRYPTION_KEY.length < 32) {
+  throw new Error('La variable de entorno TOTP_ENCRYPTION_KEY debe tener al menos 32 caracteres.');
 }
 
 const app = express();
@@ -191,6 +203,15 @@ async function verifyPassword(password, passwordHash) {
   return timingSafeEqual(expected, actual);
 }
 
+async function createTwoFactorEnrollment(email) {
+  const secret = generateTotpSecret();
+  const qrDataUrl = await QRCode.toDataURL(buildOtpauthUrl(email, secret));
+  return {
+    encryptedSecret: encryptSecret(secret, TOTP_ENCRYPTION_KEY),
+    qrDataUrl
+  };
+}
+
 const loginAttempts = new Map();
 const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 5;
@@ -290,13 +311,22 @@ app.post('/api/createcount/accounts', requireAccountCreationSession, async (requ
   }
 
   try {
+    const twoFactor = await createTwoFactorEnrollment(email);
     const result = await usersCollection.insertOne({
       email,
       passwordHash: await hashPassword(password),
       role,
+      twoFactorSecret: twoFactor.encryptedSecret,
+      twoFactorLastStep: null,
       createdAt: new Date()
     });
-    response.status(201).json({ created: true, id: result.insertedId.toString(), email, role });
+    response.status(201).json({
+      created: true,
+      id: result.insertedId.toString(),
+      email,
+      role,
+      qrDataUrl: twoFactor.qrDataUrl
+    });
   } catch (error) {
     if (error.code === 11000) {
       response.status(409).json({ error: 'Ya existe una cuenta con ese correo.' });
@@ -304,6 +334,34 @@ app.post('/api/createcount/accounts', requireAccountCreationSession, async (requ
     }
     console.error('Error creando cuenta desde /createcount:', error);
     response.status(500).json({ error: 'No fue posible crear la cuenta.' });
+  }
+});
+
+app.post('/api/createcount/accounts/two-factor', requireAccountCreationSession, async (request, response) => {
+  const email = typeof request.body?.email === 'string'
+    ? request.body.email.trim().toLowerCase()
+    : '';
+  if (!email) {
+    response.status(400).json({ error: 'Ingresa el correo de la cuenta.' });
+    return;
+  }
+
+  try {
+    const user = await usersCollection.findOne({ email }, { projection: { _id: 1 } });
+    if (!user) {
+      response.status(404).json({ error: 'No existe una cuenta con ese correo.' });
+      return;
+    }
+
+    const twoFactor = await createTwoFactorEnrollment(email);
+    await usersCollection.updateOne(
+      { _id: user._id },
+      { $set: { twoFactorSecret: twoFactor.encryptedSecret, twoFactorLastStep: null } }
+    );
+    response.json({ email, qrDataUrl: twoFactor.qrDataUrl });
+  } catch (error) {
+    console.error('Error configurando doble factor:', error);
+    response.status(500).json({ error: 'No fue posible configurar el doble factor.' });
   }
 });
 
@@ -336,6 +394,41 @@ app.post('/api/admin/login', async (request, response, next) => {
     if (!user || !validPassword || !['admin', 'advisor'].includes(user.role)) {
       recordFailedLogin(ipAddress);
       response.status(401).json({ error: 'Correo o contraseña incorrectos.' });
+      return;
+    }
+
+    if (!user.twoFactorSecret) {
+      response.status(403).json({
+        error: 'Esta cuenta no tiene doble factor configurado. Pide a un administrador que lo configure desde /createcount.'
+      });
+      return;
+    }
+
+    const code = typeof request.body?.code === 'string'
+      ? request.body.code.replace(/\s/g, '')
+      : '';
+    const step = verifyTotp(decryptSecret(user.twoFactorSecret, TOTP_ENCRYPTION_KEY), code);
+    if (step === null) {
+      recordFailedLogin(ipAddress);
+      response.status(401).json({ error: 'Correo, contraseña o código de verificación incorrectos.' });
+      return;
+    }
+
+    // Cada código solo puede usarse una vez dentro de su ventana de validez.
+    const replayCheck = await usersCollection.updateOne(
+      {
+        _id: user._id,
+        $or: [
+          { twoFactorLastStep: null },
+          { twoFactorLastStep: { $exists: false } },
+          { twoFactorLastStep: { $lt: step } }
+        ]
+      },
+      { $set: { twoFactorLastStep: step } }
+    );
+    if (replayCheck.matchedCount === 0) {
+      recordFailedLogin(ipAddress);
+      response.status(401).json({ error: 'Correo, contraseña o código de verificación incorrectos.' });
       return;
     }
 

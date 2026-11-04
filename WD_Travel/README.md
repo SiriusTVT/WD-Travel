@@ -1,5 +1,12 @@
 # React + TypeScript + Vite
 
+## Doble factor de autenticación (Google Authenticator)
+
+- Al crear una cuenta en `/createcount` se genera un código QR (TOTP, RFC 6238). Escanéalo con Google Authenticator; el QR se muestra en pantalla después de crear la cuenta.
+- Para cuentas existentes (incluida la inicial) usa el formulario "Configurar doble factor" en `/createcount`: genera un QR nuevo y reemplaza el anterior.
+- El inicio de sesión exige correo, contraseña y el código de 6 dígitos. Cada código solo sirve una vez y el límite de 5 intentos fallidos por 15 minutos también aplica.
+- Si pierdes el acceso al teléfono, un administrador debe generar un QR nuevo desde `/createcount`.
+
 ## Persistencia de cotizaciones y ventas realizadas
 
 - **Cotizaciones pendientes:** Se guardan, consultan y editan en MongoDB en la colección `quotes` mediante los endpoints `POST /api/quotes`, `GET /api/quotes` y `PUT /api/quotes/:id`. Se muestran en orden de llegada, con la más antigua primero para dar prioridad a la primera solicitud.
@@ -17,6 +24,7 @@ En Render, configura estas variables de entorno:
 - `ADMIN_BOOTSTRAP_PASSWORD`: contraseña inicial de esa cuenta; se guarda como hash scrypt, no como texto plano.
 - `ADMIN_SESSION_SECRET`: secreto aleatorio largo para firmar las sesiones.
 - `CREATE_ACCOUNT_SECRET`: código secreto de al menos 32 caracteres para abrir el gestor oculto de cuentas.
+- `TOTP_ENCRYPTION_KEY`: clave de al menos 32 caracteres que cifra los secretos del doble factor en la base de datos. Si cambia, los códigos existentes dejan de validarse y hay que regenerar los QR.
 - `RESEND_API_KEY`: clave API de Resend.
 - `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
 - `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.
