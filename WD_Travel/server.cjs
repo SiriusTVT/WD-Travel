@@ -28,6 +28,8 @@ const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
 const ADMIN_SESSION_COOKIE = 'wdtravel_admin';
 const ACCOUNT_CREATION_COOKIE = 'wdtravel_createcount';
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
+// Si la sesión no se usa durante 5 minutos, deja de ser válida.
+const ADMIN_SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const ACCOUNT_CREATION_SESSION_TTL_SECONDS = 15 * 60;
 const PASSWORD_HASH_LENGTH = 64;
 const PASSWORD_SALT_LENGTH = 16;
@@ -105,19 +107,27 @@ async function createAdminSession(email) {
   await sessionsCollection.insertOne({
     tokenHash: hashSessionToken(token),
     email,
+    lastActivityAt: new Date(),
     expiresAt: new Date(Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000)
   });
   return token;
 }
 
+// Cada uso renueva la actividad. Si pasa el tiempo de inactividad, la sesión ya no coincide y se rechaza.
 async function getAdminSession(request) {
   const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
   if (!token) return null;
 
-  const session = await sessionsCollection.findOne({
-    tokenHash: hashSessionToken(token),
-    expiresAt: { $gt: new Date() }
-  });
+  const now = new Date();
+  const session = await sessionsCollection.findOneAndUpdate(
+    {
+      tokenHash: hashSessionToken(token),
+      expiresAt: { $gt: now },
+      lastActivityAt: { $gt: new Date(now.getTime() - ADMIN_SESSION_IDLE_TIMEOUT_MS) }
+    },
+    { $set: { lastActivityAt: now } },
+    { returnDocument: 'after' }
+  );
   return session ? { email: session.email } : null;
 }
 
@@ -494,7 +504,7 @@ app.post('/api/admin/login', async (request, response, next) => {
     const secure = getSecureCookieAttribute(request);
     response.setHeader(
       'Set-Cookie',
-      `${ADMIN_SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${secure}`
+      `${ADMIN_SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/${secure}`
     );
     response.json({ authenticated: true, role: user.role });
   } catch (error) {
