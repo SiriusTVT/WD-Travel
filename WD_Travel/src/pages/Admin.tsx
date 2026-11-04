@@ -62,7 +62,7 @@ interface AdminProps {
 
 export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => {
   const [activeView, setActiveView] = useState<'quotes' | 'purchases' | 'sales'>('quotes');
-  const [salesPeriod, setSalesPeriod] = useState<'month' | 'year'>('month');
+  const [salesPeriod, setSalesPeriod] = useState<'all' | 'month' | 'year'>('all');
   const [selectedSalesMonth, setSelectedSalesMonth] = useState(() => getLocalDateString().slice(0, 7));
   const [selectedSalesYear, setSelectedSalesYear] = useState(() => getLocalDateString().slice(0, 4));
   const [search, setSearch] = useState('');
@@ -560,10 +560,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const pendingQuotes = searchedBookings.filter(booking => !booking.purchaseDate);
   const purchases = searchedBookings.filter(booking => Boolean(booking.purchaseDate));
   const allPurchases = bookings.filter(booking => Boolean(booking.purchaseDate));
-  const filteredSales = allPurchases.filter(booking => salesPeriod === 'month'
-    ? Boolean(selectedSalesMonth) && booking.purchaseDate.startsWith(selectedSalesMonth)
-    : booking.purchaseDate.startsWith(`${selectedSalesYear}-`)
-  );
+  const filteredSales = allPurchases.filter(booking => {
+    if (salesPeriod === 'all') return true;
+    if (salesPeriod === 'month') return Boolean(selectedSalesMonth) && booking.purchaseDate.startsWith(selectedSalesMonth);
+    return booking.purchaseDate.startsWith(`${selectedSalesYear}-`);
+  });
   const salesYears = [...new Set([
     getLocalDateString().slice(0, 4),
     ...allPurchases
@@ -651,7 +652,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           type="button"
           role="tab"
           aria-selected={activeView === 'sales'}
-          onClick={() => setActiveView('sales')}
+          onClick={() => {
+            setActiveView('sales');
+            void fetchPurchases();
+          }}
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'sales' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'sales' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
         >
           Resumen de ventas
@@ -667,9 +671,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               <select
                 id="sales-period"
                 value={salesPeriod}
-                onChange={event => setSalesPeriod(event.target.value as 'month' | 'year')}
+                onChange={event => setSalesPeriod(event.target.value as 'all' | 'month' | 'year')}
                 style={{ minWidth: '180px', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}
               >
+                <option value="all">Todo el historial</option>
                 <option value="month">Mes</option>
                 <option value="year">Año</option>
               </select>
@@ -685,7 +690,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   style={{ minWidth: '180px', padding: '9px', borderRadius: '8px' }}
                 />
               </div>
-            ) : (
+            ) : salesPeriod === 'year' ? (
               <div>
                 <label htmlFor="sales-year" style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', color: '#374151' }}>Año:</label>
                 <select
@@ -697,14 +702,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   {salesYears.map(year => <option key={year} value={year}>{year}</option>)}
                 </select>
               </div>
-            )}
+            ) : null}
             <p style={{ margin: '0 0 10px', color: '#6b7280' }}>
               Período: <strong style={{ color: '#374151' }}>
                 {salesPeriod === 'month'
                   ? selectedSalesMonth
                     ? new Date(`${selectedSalesMonth}-01T00:00:00`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
                     : 'Selecciona un mes'
-                  : selectedSalesYear}
+                  : salesPeriod === 'year' ? selectedSalesYear : 'Todas las fechas'}
               </strong>
             </p>
           </div>
@@ -753,9 +758,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     <td style={{ padding: '14px' }}>{getBookingRoute(booking).join(' ➔ ')}</td>
                     <td style={{ padding: '14px' }}>{booking.paymentMethod}</td>
                     <td style={{ padding: '14px' }}>{formatCurrency(booking.totalValue)}</td>
-                    <td style={{ padding: '14px', color: '#16a34a' }}>{formatCurrency(booking.paidAmount)}</td>
-                    <td style={{ padding: '14px', color: booking.totalValue - booking.paidAmount > 0 ? '#d97706' : '#16a34a' }}>
-                      {formatCurrency(Math.max(0, booking.totalValue - booking.paidAmount))}
+                    <td style={{ padding: '14px', color: '#16a34a' }}>{formatCurrency(Number(booking.paidAmount) || 0)}</td>
+                    <td style={{ padding: '14px', color: (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0) > 0 ? '#d97706' : '#16a34a' }}>
+                      {formatCurrency(Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)))}
                     </td>
                     <td style={{ padding: '14px', fontWeight: 'bold' }}>{booking.paymentStatus}</td>
                   </tr>
