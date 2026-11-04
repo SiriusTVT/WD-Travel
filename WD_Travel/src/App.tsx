@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Home } from './pages/Home';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { type Booking } from './data/mockData';
 
 // Las rutas administrativas se cargan solo cuando se necesitan, para no
@@ -11,6 +12,7 @@ const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: modu
 
 const ADMIN_PATH = '/wdtraveladmin';
 const CREATE_COUNT_PATH = '/createcount';
+const PRIVACY_PATH = '/politica-de-privacidad';
 
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -19,6 +21,7 @@ function App() {
   const normalizedPath = pathname.replace(/\/+$/, '') || '/';
   const isAdminRoute = normalizedPath === ADMIN_PATH;
   const isCreateCountRoute = normalizedPath === CREATE_COUNT_PATH;
+  const isPrivacyRoute = normalizedPath === PRIVACY_PATH;
 
   const navigate = useCallback((path: string) => {
     window.history.pushState({}, '', path);
@@ -107,6 +110,10 @@ function App() {
       isMounted = false;
     };
   }, [isAdminRoute, loadAdminData]);
+
+  if (isPrivacyRoute) {
+    return <PrivacyPolicy onBackToSite={() => navigate('/')} />;
+  }
 
   if (isCreateCountRoute) {
     return (
