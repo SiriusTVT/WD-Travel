@@ -10,6 +10,7 @@ const { promisify } = require('node:util');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const QRCode = require('qrcode');
+const helmet = require('helmet');
 const {
   buildOtpauthUrl,
   decryptSecret,
@@ -23,7 +24,7 @@ const MONGO_KEY = process.env.MONGO_KEY;
 const ADMIN_BOOTSTRAP_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
 const ADMIN_BOOTSTRAP_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD;
 const CREATE_ACCOUNT_SECRET = process.env.CREATE_ACCOUNT_SECRET;
-const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || randomBytes(32).toString('hex');
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
 const ADMIN_SESSION_COOKIE = 'wdtravel_admin';
 const ACCOUNT_CREATION_COOKIE = 'wdtravel_createcount';
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
@@ -35,9 +36,16 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 const QUOTE_NOTIFICATION_EMAIL = process.env.QUOTE_NOTIFICATION_EMAIL;
 const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY;
+const ENCRYPTED_PREFIX = 'enc:';
+const QUOTE_WINDOW_MS = 10 * 60 * 1000;
+const QUOTE_MAX_SUBMISSIONS = 5;
+const ACCOUNT_MAX_ATTEMPTS = 10;
 
 if (!MONGO_KEY) {
   throw new Error('La variable de entorno MONGO_KEY no está configurada.');
+}
+if (!ADMIN_SESSION_SECRET || ADMIN_SESSION_SECRET.length < 32) {
+  throw new Error('La variable de entorno ADMIN_SESSION_SECRET debe tener al menos 32 caracteres.');
 }
 if (!TOTP_ENCRYPTION_KEY || TOTP_ENCRYPTION_KEY.length < 32) {
   throw new Error('La variable de entorno TOTP_ENCRYPTION_KEY debe tener al menos 32 caracteres.');
@@ -48,7 +56,28 @@ const mongoClient = new MongoClient(MONGO_KEY);
 let quotesCollection;
 let salesCollection;
 let usersCollection;
+let sessionsCollection;
+let rateLimitsCollection;
 
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", 'https://www.instagram.com', 'https://*.cdninstagram.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'blob:'],
+      frameSrc: ['https://www.instagram.com'],
+      connectSrc: ["'self'", 'https://www.instagram.com'],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
 app.use(express.json({ limit: '50kb' }));
 app.set('trust proxy', 1);
 
@@ -58,42 +87,45 @@ function getAdminSessionSignature(payload) {
     .digest('hex');
 }
 
-function getAdminSession(request) {
+function getCookieValue(request, name) {
   const cookie = request.headers.cookie
     ?.split(';')
     .map(value => value.trim())
-    .find(value => value.startsWith(`${ADMIN_SESSION_COOKIE}=`));
-  const session = cookie?.slice(ADMIN_SESSION_COOKIE.length + 1);
-  const [payload, signature] = session?.split('.') || [];
+    .find(value => value.startsWith(`${name}=`));
+  return cookie ? cookie.slice(name.length + 1) : '';
+}
 
-  if (!payload || !signature || !/^[a-f\d]{64}$/i.test(signature)) {
-    return null;
+function hashSessionToken(token) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+// Las sesiones se guardan en MongoDB (solo el hash del token), así se pueden revocar.
+async function createAdminSession(email) {
+  const token = randomBytes(32).toString('base64url');
+  await sessionsCollection.insertOne({
+    tokenHash: hashSessionToken(token),
+    email,
+    expiresAt: new Date(Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000)
+  });
+  return token;
+}
+
+async function getAdminSession(request) {
+  const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
+  if (!token) return null;
+
+  const session = await sessionsCollection.findOne({
+    tokenHash: hashSessionToken(token),
+    expiresAt: { $gt: new Date() }
+  });
+  return session ? { email: session.email } : null;
+}
+
+async function revokeAdminSession(request) {
+  const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
+  if (token) {
+    await sessionsCollection.deleteOne({ tokenHash: hashSessionToken(token) });
   }
-
-  const expected = Buffer.from(getAdminSessionSignature(payload), 'hex');
-  const provided = Buffer.from(signature, 'hex');
-  if (!timingSafeEqual(expected, provided)) return null;
-
-  let sessionData;
-  try {
-    sessionData = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-
-  if (
-    typeof sessionData.email !== 'string'
-    || !Number.isSafeInteger(sessionData.issuedAt)
-  ) {
-    return null;
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  if (sessionData.issuedAt > now || now - sessionData.issuedAt > ADMIN_SESSION_TTL_SECONDS) {
-    return null;
-  }
-
-  return sessionData;
 }
 
 function getAccountCreationSession(request) {
@@ -132,7 +164,7 @@ function getAccountCreationSession(request) {
 
 function requireRoles(...allowedRoles) {
   return async (request, response, next) => {
-    const session = getAdminSession(request);
+    const session = await getAdminSession(request);
     if (!session) {
       response.status(401).json({ error: 'Se requiere una sesión válida.' });
       return;
@@ -212,46 +244,65 @@ async function createTwoFactorEnrollment(email) {
   };
 }
 
-const loginAttempts = new Map();
 const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 5;
 
-function isLoginRateLimited(ipAddress) {
-  const attempts = loginAttempts.get(ipAddress);
-  if (!attempts) return false;
-
-  if (Date.now() - attempts.startedAt >= LOGIN_ATTEMPT_WINDOW_MS) {
-    loginAttempts.delete(ipAddress);
-    return false;
-  }
-
-  return attempts.count >= LOGIN_MAX_ATTEMPTS;
+// Contadores guardados en MongoDB: sobreviven reinicios y se comparten entre instancias.
+async function isRateLimited(key, limit) {
+  const entry = await rateLimitsCollection.findOne({ _id: key, resetAt: { $gt: new Date() } });
+  return Boolean(entry && entry.count >= limit);
 }
 
-function recordFailedLogin(ipAddress) {
-  const current = loginAttempts.get(ipAddress);
-  if (!current || Date.now() - current.startedAt >= LOGIN_ATTEMPT_WINDOW_MS) {
-    loginAttempts.set(ipAddress, { startedAt: Date.now(), count: 1 });
-    return;
+async function recordAttempt(key, windowMs) {
+  const now = new Date();
+  const updated = await rateLimitsCollection.findOneAndUpdate(
+    { _id: key, resetAt: { $gt: now } },
+    { $inc: { count: 1 } },
+    { returnDocument: 'after' }
+  );
+  if (updated) return;
+
+  try {
+    await rateLimitsCollection.updateOne(
+      { _id: key },
+      { $set: { count: 1, resetAt: new Date(now.getTime() + windowMs) } },
+      { upsert: true }
+    );
+  } catch (error) {
+    if (error.code !== 11000) throw error;
   }
-  current.count += 1;
 }
 
-app.post('/api/createcount/access', (request, response) => {
+async function clearAttempts(key) {
+  await rateLimitsCollection.deleteOne({ _id: key });
+}
+
+// Cuenta el intento por IP y por cuenta, para frenar la fuerza bruta contra una contraseña.
+async function recordLoginFailure(ipAddress, email) {
+  await recordAttempt(`login-ip:${ipAddress}`, LOGIN_ATTEMPT_WINDOW_MS);
+  if (email) await recordAttempt(`login-account:${email}`, LOGIN_ATTEMPT_WINDOW_MS);
+}
+
+async function clearLoginAttempts(ipAddress, email) {
+  await clearAttempts(`login-ip:${ipAddress}`);
+  if (email) await clearAttempts(`login-account:${email}`);
+}
+
+app.post('/api/createcount/access', async (request, response) => {
   if (!CREATE_ACCOUNT_SECRET || CREATE_ACCOUNT_SECRET.length < 32) {
     response.status(503).json({ error: 'El acceso de creación de cuentas no está configurado correctamente.' });
     return;
   }
 
   const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
-  if (isLoginRateLimited(ipAddress)) {
+  if (await isRateLimited(`login-ip:${ipAddress}`, LOGIN_MAX_ATTEMPTS)) {
     response.status(429).json({ error: 'Demasiados intentos. Espera 15 minutos e inténtalo nuevamente.' });
     return;
   }
 
   const secret = request.body?.secret;
   if (typeof secret !== 'string' || secret.length > 512) {
-    recordFailedLogin(ipAddress);
+    await recordLoginFailure(ipAddress, '');
     response.status(401).json({ error: 'El código secreto no es válido.' });
     return;
   }
@@ -259,12 +310,12 @@ app.post('/api/createcount/access', (request, response) => {
   const expected = createHash('sha256').update(CREATE_ACCOUNT_SECRET).digest();
   const provided = createHash('sha256').update(secret).digest();
   if (!timingSafeEqual(expected, provided)) {
-    recordFailedLogin(ipAddress);
+    await recordLoginFailure(ipAddress, '');
     response.status(401).json({ error: 'El código secreto no es válido.' });
     return;
   }
 
-  loginAttempts.delete(ipAddress);
+  await clearLoginAttempts(ipAddress, '');
   const payload = Buffer.from(JSON.stringify({
     purpose: 'account-creation',
     issuedAt: Math.floor(Date.now() / 1000)
@@ -358,6 +409,7 @@ app.post('/api/createcount/accounts/two-factor', requireAccountCreationSession, 
       { _id: user._id },
       { $set: { twoFactorSecret: twoFactor.encryptedSecret, twoFactorLastStep: null } }
     );
+    await sessionsCollection.deleteMany({ email });
     response.json({ email, qrDataUrl: twoFactor.qrDataUrl });
   } catch (error) {
     console.error('Error configurando doble factor:', error);
@@ -367,7 +419,7 @@ app.post('/api/createcount/accounts/two-factor', requireAccountCreationSession, 
 
 app.post('/api/admin/login', async (request, response, next) => {
   const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
-  if (isLoginRateLimited(ipAddress)) {
+  if (await isRateLimited(`login-ip:${ipAddress}`, LOGIN_MAX_ATTEMPTS)) {
     response.status(429).json({ error: 'Demasiados intentos. Espera 15 minutos e inténtalo nuevamente.' });
     return;
   }
@@ -381,10 +433,15 @@ app.post('/api/admin/login', async (request, response, next) => {
     return;
   }
 
+  if (await isRateLimited(`login-account:${email}`, ACCOUNT_MAX_ATTEMPTS)) {
+    response.status(429).json({ error: 'Demasiados intentos para esta cuenta. Espera 15 minutos e inténtalo nuevamente.' });
+    return;
+  }
+
   try {
     const user = await usersCollection.findOne({ email });
     if (typeof password === 'string' && password.length > 256) {
-      recordFailedLogin(ipAddress);
+      await recordLoginFailure(ipAddress, email);
       response.status(401).json({ error: 'Correo o contraseña incorrectos.' });
       return;
     }
@@ -392,7 +449,7 @@ app.post('/api/admin/login', async (request, response, next) => {
       ? await verifyPassword(password, user.passwordHash)
       : await verifyPassword(password, '00000000000000000000000000000000:' + '0'.repeat(128));
     if (!user || !validPassword || !['admin', 'advisor'].includes(user.role)) {
-      recordFailedLogin(ipAddress);
+      await recordLoginFailure(ipAddress, email);
       response.status(401).json({ error: 'Correo o contraseña incorrectos.' });
       return;
     }
@@ -409,7 +466,7 @@ app.post('/api/admin/login', async (request, response, next) => {
       : '';
     const step = verifyTotp(decryptSecret(user.twoFactorSecret, TOTP_ENCRYPTION_KEY), code);
     if (step === null) {
-      recordFailedLogin(ipAddress);
+      await recordLoginFailure(ipAddress, email);
       response.status(401).json({ error: 'Correo, contraseña o código de verificación incorrectos.' });
       return;
     }
@@ -427,20 +484,17 @@ app.post('/api/admin/login', async (request, response, next) => {
       { $set: { twoFactorLastStep: step } }
     );
     if (replayCheck.matchedCount === 0) {
-      recordFailedLogin(ipAddress);
+      await recordLoginFailure(ipAddress, email);
       response.status(401).json({ error: 'Correo, contraseña o código de verificación incorrectos.' });
       return;
     }
 
-    loginAttempts.delete(ipAddress);
-    const payload = Buffer.from(JSON.stringify({
-      email: user.email,
-      issuedAt: Math.floor(Date.now() / 1000)
-    })).toString('base64url');
+    await clearLoginAttempts(ipAddress, email);
+    const token = await createAdminSession(user.email);
     const secure = getSecureCookieAttribute(request);
     response.setHeader(
       'Set-Cookie',
-      `${ADMIN_SESSION_COOKIE}=${payload}.${getAdminSessionSignature(payload)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${secure}`
+      `${ADMIN_SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}${secure}`
     );
     response.json({ authenticated: true, role: user.role });
   } catch (error) {
@@ -452,7 +506,13 @@ app.get('/api/admin/session', requireAdmin, (request, response) => {
   response.json({ authenticated: true, role: request.authUser.role });
 });
 
-app.post('/api/admin/logout', (request, response) => {
+app.post('/api/admin/logout', async (request, response, next) => {
+  try {
+    await revokeAdminSession(request);
+  } catch (error) {
+    next(error);
+    return;
+  }
   const secure = getSecureCookieAttribute(request);
   response.setHeader(
     'Set-Cookie',
@@ -592,6 +652,49 @@ async function sendQuoteNotification(quote) {
   }
 }
 
+// Cifra el campo "cedula" en cualquier nivel del documento (titular, pasajeros, etc.).
+function mapSensitiveFields(value, mapper) {
+  if (Array.isArray(value)) return value.map(item => mapSensitiveFields(item, mapper));
+  if (value && typeof value === 'object' && !(value instanceof Date) && !value._bsontype) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      key === 'cedula' && typeof item === 'string' ? mapper(item) : mapSensitiveFields(item, mapper)
+    ]));
+  }
+  return value;
+}
+
+function protectSensitiveFields(value) {
+  return mapSensitiveFields(value, cedula => (
+    cedula && !cedula.startsWith(ENCRYPTED_PREFIX)
+      ? ENCRYPTED_PREFIX + encryptSecret(cedula, TOTP_ENCRYPTION_KEY)
+      : cedula
+  ));
+}
+
+function revealSensitiveFields(value) {
+  return mapSensitiveFields(value, cedula => (
+    cedula.startsWith(ENCRYPTED_PREFIX)
+      ? decryptSecret(cedula.slice(ENCRYPTED_PREFIX.length), TOTP_ENCRYPTION_KEY)
+      : cedula
+  ));
+}
+
+// Cifra las cédulas que ya estaban guardadas en texto plano.
+async function migrateSensitiveFields(collection) {
+  const docs = await collection.find({ cedula: { $exists: true } }).toArray();
+  let migrated = 0;
+  for (const doc of docs) {
+    const { _id, ...fields } = doc;
+    const protectedFields = protectSensitiveFields(fields);
+    if (JSON.stringify(protectedFields) !== JSON.stringify(fields)) {
+      await collection.updateOne({ _id }, { $set: protectedFields });
+      migrated += 1;
+    }
+  }
+  if (migrated > 0) console.log(`Cédulas cifradas en ${collection.collectionName}: ${migrated}`);
+}
+
 function buildIdFilter(id) {
   const filters = [{ id: String(id) }];
   if (ObjectId.isValid(id)) {
@@ -613,7 +716,7 @@ app.get('/api/quotes', requireAdmin, async (request, response) => {
       .limit(500)
       .toArray();
     const quotes = docs.map(doc => {
-      const { _id, ...rest } = doc;
+      const { _id, ...rest } = revealSensitiveFields(doc);
       return {
         ...rest,
         id: rest.id || _id.toString()
@@ -629,6 +732,19 @@ app.get('/api/quotes', requireAdmin, async (request, response) => {
 // Guardar nueva cotización
 app.post('/api/quotes', async (request, response) => {
   const quote = request.body;
+  const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
+
+  if (await isRateLimited(`quotes-ip:${ipAddress}`, QUOTE_MAX_SUBMISSIONS)) {
+    response.status(429).json({ error: 'Recibimos muchas solicitudes desde tu conexión. Espera unos minutos e inténtalo nuevamente.' });
+    return;
+  }
+  await recordAttempt(`quotes-ip:${ipAddress}`, QUOTE_WINDOW_MS);
+
+  // Campo trampa (honeypot): los bots suelen llenar todos los campos. Se responde como si se guardara.
+  if (quote && typeof quote === 'object' && typeof quote.website === 'string' && quote.website.trim() !== '') {
+    response.status(201).json({ saved: true, id: null, notificationSent: false });
+    return;
+  }
 
   if (
     !quote ||
@@ -638,23 +754,29 @@ app.post('/api/quotes', async (request, response) => {
     typeof quote.phone !== 'string' ||
     typeof quote.cedula !== 'string' ||
     typeof quote.route !== 'string' ||
-    typeof quote.travelDate !== 'string'
+    typeof quote.travelDate !== 'string' ||
+    quote.privacyAccepted !== true
   ) {
-    response.status(400).json({ error: 'La información de la cotización es inválida.' });
+    response.status(400).json({
+      error: 'La información de la cotización es inválida o falta aceptar la política de privacidad.'
+    });
     return;
   }
 
   try {
     const id = quote.id || Date.now().toString();
-    const savedQuote = {
-      ...quote,
+    const { website, privacyAccepted, ...fields } = quote;
+    const createdAt = new Date();
+    const savedQuote = protectSensitiveFields({
+      ...fields,
       id,
-      createdAt: new Date()
-    };
+      privacyAcceptedAt: createdAt,
+      createdAt
+    });
     const result = await quotesCollection.insertOne(savedQuote);
     console.log(`Cotización guardada correctamente: ${result.insertedId}`);
 
-    const notificationSent = await sendQuoteNotification(savedQuote);
+    const notificationSent = await sendQuoteNotification({ ...fields, id, createdAt });
     response.status(201).json({ saved: true, id, notificationSent });
   } catch (error) {
     console.error('Error guardando la cotización:', error);
@@ -669,7 +791,7 @@ app.put('/api/quotes/:id', requireAdmin, async (request, response) => {
     const { _id, ...updateData } = request.body;
     const result = await quotesCollection.updateOne(
       buildIdFilter(id),
-      { $set: { ...updateData, updatedAt: new Date() } }
+      { $set: { ...protectSensitiveFields(updateData), updatedAt: new Date() } }
     );
     if (result.matchedCount === 0) {
       console.warn(`No se encontró la cotización con ID ${id} para actualizar.`);
@@ -704,7 +826,7 @@ app.get(['/api/sales', '/api/purchases'], requireAdministrator, async (request, 
       .limit(500)
       .toArray();
     const sales = docs.map(doc => {
-      const { _id, ...rest } = doc;
+      const { _id, ...rest } = revealSensitiveFields(doc);
       return {
         ...rest,
         id: rest.id || _id.toString()
@@ -744,12 +866,12 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, async (request, respons
 
     // 2. Preparar el registro para el nuevo esquema de ventas_realizadas
     const id = saleData.id || String(targetQuoteId) || Date.now().toString();
-    const newSale = {
+    const newSale = protectSensitiveFields({
       ...saleData,
       id,
       purchaseDate: saleData.purchaseDate || new Date().toISOString().split('T')[0],
       createdAt: new Date()
-    };
+    });
 
     // 3. Insertar o actualizar en ventas_realizadas
     await salesCollection.updateOne(
@@ -773,7 +895,7 @@ app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, 
     const { _id, ...updateData } = request.body;
     const result = await salesCollection.updateOne(
       buildIdFilter(id),
-      { $set: { ...updateData, updatedAt: new Date() } }
+      { $set: { ...protectSensitiveFields(updateData), updatedAt: new Date() } }
     );
     if (result.matchedCount === 0) {
       console.warn(`No se encontró la compra con ID ${id} para actualizar.`);
@@ -810,8 +932,16 @@ async function start() {
   quotesCollection = database.collection('quotes');
   salesCollection = database.collection('ventas_realizadas');
   usersCollection = database.collection('users');
+  sessionsCollection = database.collection('sessions');
+  rateLimitsCollection = database.collection('rate_limits');
   await database.command({ ping: 1 });
   await usersCollection.createIndex({ email: 1 }, { unique: true });
+  await sessionsCollection.createIndex({ tokenHash: 1 }, { unique: true });
+  await sessionsCollection.createIndex({ email: 1 });
+  await sessionsCollection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  await rateLimitsCollection.createIndex({ resetAt: 1 }, { expireAfterSeconds: 0 });
+  await migrateSensitiveFields(quotesCollection);
+  await migrateSensitiveFields(salesCollection);
 
   if (ADMIN_BOOTSTRAP_EMAIL && ADMIN_BOOTSTRAP_PASSWORD) {
     if (

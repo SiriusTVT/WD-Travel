@@ -1,5 +1,13 @@
 # React + TypeScript + Vite
 
+## Seguridad
+
+- Las sesiones de administrador se guardan en MongoDB (`sessions`) y se revocan al cerrar sesión o al reconfigurar el doble factor de una cuenta.
+- Los límites de intentos (inicio de sesión por IP y por cuenta, y envíos de cotizaciones por IP) se guardan en MongoDB (`rate_limits`), así que sobreviven reinicios y se comparten entre instancias.
+- El formulario de cotización tiene un campo trampa (honeypot) y exige aceptar la política de privacidad. La política está en `/politica-de-privacidad` y es un borrador: revísala con un asesor legal antes de publicarla.
+- Las cédulas se cifran al guardarse. Al iniciar el servidor se cifran también los registros que ya estaban en texto plano.
+- Las cabeceras de seguridad (CSP, HSTS y anti-iframe) las aplica `helmet`.
+
 ## Doble factor de autenticación (Google Authenticator)
 
 - Al crear una cuenta en `/createcount` se genera un código QR (TOTP, RFC 6238). Escanéalo con Google Authenticator; el QR se muestra en pantalla después de crear la cuenta.
@@ -24,7 +32,7 @@ En Render, configura estas variables de entorno:
 - `ADMIN_BOOTSTRAP_PASSWORD`: contraseña inicial de esa cuenta; se guarda como hash scrypt, no como texto plano.
 - `ADMIN_SESSION_SECRET`: secreto aleatorio largo para firmar las sesiones.
 - `CREATE_ACCOUNT_SECRET`: código secreto de al menos 32 caracteres para abrir el gestor oculto de cuentas.
-- `TOTP_ENCRYPTION_KEY`: clave de al menos 32 caracteres que cifra los secretos del doble factor en la base de datos. Si cambia, los códigos existentes dejan de validarse y hay que regenerar los QR.
+- `TOTP_ENCRYPTION_KEY`: clave de al menos 32 caracteres que cifra los secretos del doble factor y las cédulas guardadas en la base de datos. Si cambia, los códigos y las cédulas cifradas dejan de poder leerse; no la cambies sin migrar los datos.
 - `RESEND_API_KEY`: clave API de Resend.
 - `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
 - `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.

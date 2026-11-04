@@ -297,6 +297,9 @@ interface HomeProps {
 export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  // Campo trampa: los humanos no lo ven; los bots suelen llenarlo.
+  const [website, setWebsite] = useState('');
   const [notificationSent, setNotificationSent] = useState<boolean | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   // Cada carga de la página empieza con un destino distinto al azar.
@@ -484,7 +487,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       const response = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(booking)
+        body: JSON.stringify({ ...booking, privacyAccepted, website })
       });
 
       if (!response.ok) {
@@ -901,6 +904,27 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 </>
               )}
 
+              <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: '1px', height: '1px', overflow: 'hidden' }}>
+                <label>
+                  Sitio web
+                  <input type="text" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} />
+                </label>
+              </div>
+
+              <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', color: 'var(--wd-ink)', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                <input
+                  type="checkbox"
+                  required
+                  checked={privacyAccepted}
+                  onChange={event => setPrivacyAccepted(event.target.checked)}
+                  style={{ marginTop: '4px' }}
+                />
+                <span>
+                  Autorizo a W.D Travel S.A.S. a tratar mis datos personales, incluida mi cédula, para gestionar esta cotización, según la{' '}
+                  <a href="/politica-de-privacidad" target="_blank" rel="noreferrer" style={{ color: 'var(--wd-blue)', fontWeight: 700 }}>política de privacidad</a>.
+                </span>
+              </label>
+
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -968,7 +992,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             ))}
           </div>
         </div>
-        <p className="site-footer-copy">© {new Date().getFullYear()} W.D Travel. Todos los derechos reservados.</p>
+        <p className="site-footer-copy">
+          © {new Date().getFullYear()} W.D Travel. Todos los derechos reservados. ·{' '}
+          <a href="/politica-de-privacidad" style={{ color: 'inherit' }}>Política de privacidad</a>
+        </p>
       </footer>
     </div>
   );
