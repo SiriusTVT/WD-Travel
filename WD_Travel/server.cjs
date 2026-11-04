@@ -823,7 +823,6 @@ app.get(['/api/sales', '/api/purchases'], requireAdministrator, async (request, 
     const docs = await salesCollection
       .find({})
       .sort({ createdAt: -1, purchaseDate: -1 })
-      .limit(500)
       .toArray();
     const sales = docs.map(doc => {
       const { _id, ...rest } = revealSensitiveFields(doc);
