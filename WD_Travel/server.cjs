@@ -652,7 +652,10 @@ async function sendQuoteNotification(quote) {
     });
 
     if (!response.ok) {
-      console.error(`Resend rechazó el aviso de cotización (HTTP ${response.status}).`);
+      const errorDetails = await response.text();
+      console.error(
+        `Resend rechazó el aviso de cotización (HTTP ${response.status}): ${errorDetails || 'sin detalles'}`
+      );
       return false;
     }
     return true;

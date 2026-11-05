@@ -35,7 +35,9 @@ En Render, configura estas variables de entorno:
 - `TOTP_ENCRYPTION_KEY`: clave de al menos 32 caracteres que cifra los secretos del doble factor y las cédulas guardadas en la base de datos. Si cambia, los códigos y las cédulas cifradas dejan de poder leerse; no la cambies sin migrar los datos.
 - `RESEND_API_KEY`: clave API de Resend.
 - `RESEND_FROM_EMAIL`: remitente autorizado/verificado en Resend (por ejemplo, `WD Travel <cotizaciones@tu-dominio.com>`).
-- `QUOTE_NOTIFICATION_EMAIL`: dirección de correo que recibirá los avisos, definida por el cliente.
+- `QUOTE_NOTIFICATION_EMAIL`: dirección de correo del administrador que recibirá los avisos de cotización.
+
+El remitente (`RESEND_FROM_EMAIL`) y el destinatario (`QUOTE_NOTIFICATION_EMAIL`) cumplen funciones distintas. Para entregar avisos a otros destinatarios, verifica en Resend un dominio propio y usa como remitente una dirección de ese dominio; no uses el correo personal del administrador como remitente a menos que su dominio esté verificado en Resend. Si Resend rechaza el envío, revisa los logs del servicio en Render para ver el detalle devuelto por la API.
 
 Al iniciar el servidor, se crea la cuenta inicial en la colección MongoDB `users` si no existe; su documento contiene `email`, `passwordHash`, `role` (`admin` o `advisor`) y `createdAt`. Si la cuenta inicial ya existe, el arranque no reemplaza su contraseña. La página principal conserva el formulario público de cotización y no muestra controles de acceso administrativo. Para iniciar sesión, abre directamente `https://wd-travel.onrender.com/wdtraveladmin`. La sesión usa una cookie `HttpOnly` firmada que vence en 8 horas. Hay límite de intentos fallidos de inicio de sesión.
 
