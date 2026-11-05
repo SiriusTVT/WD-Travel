@@ -498,8 +498,12 @@ h3 {
 }
 
 .package-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: auto;
   width: 100%;
+  min-height: 48px;
   padding: 12px 16px;
   color: #fff;
   background: #2d60a8;
@@ -508,6 +512,8 @@ h3 {
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 800;
+  opacity: 1;
+  visibility: visible;
 }
 
 .package-button:hover {
@@ -1550,14 +1556,6 @@ select:focus {
   .presentation-video { width: 100%; max-width: 100%; }
   .packages-section, .services-section { padding: 72px 18px 55px; }
   .packages-grid, .services-grid { grid-template-columns: 1fr; }
-  .package-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 48px;
-    opacity: 1;
-    visibility: visible;
-  }
   .package-category-nav { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; }
   .package-category-nav a { flex: 0 0 auto; white-space: nowrap; }
   .quote-section { padding: 65px 14px 70px !important; }
@@ -1662,10 +1660,12 @@ select:focus {
 .package-button {
   border-radius: 999px;
   background: var(--wd-navy) !important;
+  color: #fff !important;
 }
 
 .package-button:hover {
   background: var(--wd-blue) !important;
+  color: #fff !important;
 }
 
 /* Portada con destinos rotativos (cambia cada 5 minutos) */
