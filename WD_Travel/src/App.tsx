@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Home } from './pages/Home';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { type Booking } from './data/mockData';
 
 // Las rutas administrativas se cargan solo cuando se necesitan, para no
@@ -10,7 +11,12 @@ const CreateCount = lazy(() => import('./pages/CreateCount').then(module => ({ d
 const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 
 const ADMIN_PATH = '/wdtraveladmin';
+// Tiempo sin actividad (o con la pestaña oculta) antes de cerrar la sesión administrativa.
+const ADMIN_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const ADMIN_HEARTBEAT_MS = 60 * 1000;
+const ADMIN_IDLE_CHECK_MS = 15 * 1000;
 const CREATE_COUNT_PATH = '/createcount';
+const PRIVACY_PATH = '/politica-de-privacidad';
 
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -19,6 +25,7 @@ function App() {
   const normalizedPath = pathname.replace(/\/+$/, '') || '/';
   const isAdminRoute = normalizedPath === ADMIN_PATH;
   const isCreateCountRoute = normalizedPath === CREATE_COUNT_PATH;
+  const isPrivacyRoute = normalizedPath === PRIVACY_PATH;
 
   const navigate = useCallback((path: string) => {
     window.history.pushState({}, '', path);
@@ -107,6 +114,59 @@ function App() {
       isMounted = false;
     };
   }, [isAdminRoute, loadAdminData]);
+
+  useEffect(() => {
+    if (!isAdminRoute || !adminRole) return;
+
+    let lastActivity = Date.now();
+    let lastHeartbeat = Date.now();
+    let hiddenSince: number | null = document.hidden ? Date.now() : null;
+
+    const markActive = () => {
+      lastActivity = Date.now();
+    };
+    const handleVisibilityChange = () => {
+      hiddenSince = document.hidden ? Date.now() : null;
+      if (!document.hidden) markActive();
+    };
+    const activityEvents = ['pointerdown', 'keydown', 'scroll'] as const;
+    activityEvents.forEach(eventName => window.addEventListener(eventName, markActive, { passive: true }));
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const checkIdle = window.setInterval(() => {
+      const now = Date.now();
+      const idleFor = hiddenSince === null ? now - lastActivity : now - hiddenSince;
+
+      if (idleFor >= ADMIN_IDLE_TIMEOUT_MS) {
+        window.clearInterval(checkIdle);
+        void handleAdminLogout().catch(error => console.error('No fue posible cerrar la sesión por inactividad:', error));
+        window.alert('La sesión administrativa se cerró por inactividad.');
+        return;
+      }
+
+      // Mientras la persona esté activa, se renueva la sesión en el servidor.
+      if (now - lastHeartbeat >= ADMIN_HEARTBEAT_MS) {
+        lastHeartbeat = now;
+        void fetch('/api/admin/session').then(response => {
+          if (response.status === 401) {
+            setAdminRole(null);
+            setBookings([]);
+            navigate('/');
+          }
+        }).catch(error => console.error('No fue posible renovar la sesión administrativa:', error));
+      }
+    }, ADMIN_IDLE_CHECK_MS);
+
+    return () => {
+      window.clearInterval(checkIdle);
+      activityEvents.forEach(eventName => window.removeEventListener(eventName, markActive));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAdminRoute, adminRole, handleAdminLogout, navigate]);
+
+  if (isPrivacyRoute) {
+    return <PrivacyPolicy onBackToSite={() => navigate('/')} />;
+  }
 
   if (isCreateCountRoute) {
     return (

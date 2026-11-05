@@ -17,6 +17,9 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qrEmail, setQrEmail] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [twoFactorEmail, setTwoFactorEmail] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -87,16 +90,18 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role })
       });
-      const result: { error?: string; email?: string; role?: 'admin' | 'advisor' } = await response.json();
+      const result: { error?: string; email?: string; role?: 'admin' | 'advisor'; qrDataUrl?: string } = await response.json();
       if (!response.ok) {
         throw new Error(result.error || 'No fue posible crear la cuenta.');
       }
-      if (!result.email || (result.role !== 'admin' && result.role !== 'advisor')) {
+      if (!result.email || (result.role !== 'admin' && result.role !== 'advisor') || !result.qrDataUrl) {
         throw new Error('El servidor devolvió una respuesta inválida al crear la cuenta.');
       }
 
       const roleLabel = result.role === 'admin' ? 'Administrador' : 'Asesor';
-      setSuccessMessage(`Cuenta creada para ${result.email} con rol ${roleLabel}.`);
+      setSuccessMessage(`Cuenta creada para ${result.email} con rol ${roleLabel}. Escanea el QR con Google Authenticator.`);
+      setQrEmail(result.email);
+      setQrDataUrl(result.qrDataUrl);
       setEmail('');
       setPassword('');
       setConfirmPassword('');
@@ -104,6 +109,38 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
     } catch (error) {
       console.error('Error creando cuenta de usuario:', error);
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible crear la cuenta.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTwoFactorSetup = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch('/api/createcount/accounts/two-factor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: twoFactorEmail })
+      });
+      const result: { error?: string; email?: string; qrDataUrl?: string } = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'No fue posible configurar el doble factor.');
+      }
+      if (!result.email || !result.qrDataUrl) {
+        throw new Error('El servidor devolvió una respuesta inválida.');
+      }
+
+      setQrEmail(result.email);
+      setQrDataUrl(result.qrDataUrl);
+      setSuccessMessage(`Doble factor configurado para ${result.email}. Las claves anteriores dejan de funcionar.`);
+      setTwoFactorEmail('');
+    } catch (error) {
+      console.error('Error configurando doble factor:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'No fue posible configurar el doble factor.');
     } finally {
       setIsSubmitting(false);
     }
@@ -196,6 +233,33 @@ export const CreateCount: FC<CreateCountProps> = ({ onBackToSite }) => {
               </select>
               <button type="submit" disabled={isSubmitting} style={{ width: '100%', marginTop: '22px', padding: '12px 16px', border: 0, borderRadius: '8px', color: '#fff', background: '#2d60a8', fontWeight: 700, cursor: 'pointer' }}>
                 {isSubmitting ? 'Guardando...' : 'Crear cuenta'}
+              </button>
+            </form>
+            {qrDataUrl && (
+              <div style={{ marginTop: '22px', padding: '16px', textAlign: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                <p style={{ marginBottom: '10px', color: '#173964', fontWeight: 700 }}>Doble factor para {qrEmail}</p>
+                <img src={qrDataUrl} alt={`Código QR de doble factor para ${qrEmail}`} style={{ width: '220px', height: '220px' }} />
+                <p style={{ marginTop: '10px', color: '#64748b', fontSize: '0.88rem' }}>
+                  Abre Google Authenticator, elige "Escanear código QR" y guarda esta cuenta. Esta imagen da acceso a la cuenta: no la compartas.
+                </p>
+                <button type="button" onClick={() => { setQrDataUrl(''); setQrEmail(''); }} style={{ marginTop: '8px', padding: '6px 0', border: 0, color: '#2d60a8', background: 'transparent', fontWeight: 700, cursor: 'pointer' }}>
+                  Ocultar QR
+                </button>
+              </div>
+            )}
+            <form onSubmit={event => void handleTwoFactorSetup(event)} style={{ marginTop: '26px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
+              <label htmlFor="two-factor-email" style={{ display: 'block', marginBottom: '6px', color: '#374151', fontWeight: 700 }}>Configurar doble factor de una cuenta existente</label>
+              <input
+                id="two-factor-email"
+                type="email"
+                required
+                value={twoFactorEmail}
+                onChange={event => setTwoFactorEmail(event.target.value)}
+                placeholder="correo@ejemplo.com"
+                style={{ width: '100%', padding: '11px', borderRadius: '8px' }}
+              />
+              <button type="submit" disabled={isSubmitting} style={{ width: '100%', marginTop: '12px', padding: '11px 16px', border: 0, borderRadius: '8px', color: '#fff', background: '#173964', fontWeight: 'bold', cursor: 'pointer' }}>
+                Generar nuevo QR
               </button>
             </form>
             <button type="button" disabled={isSubmitting} onClick={() => void handleLock()} style={{ display: 'block', margin: '12px auto 0', padding: '8px', border: 0, color: '#475569', background: 'transparent', cursor: 'pointer' }}>
