@@ -808,11 +808,20 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
               <div style={{ display: 'grid', gridTemplateColumns: tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '20px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Fecha de Ida:</label>
-                  <input required type="date" min={getLocalDateString()} value={travelDate} onChange={e => setTravelDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  <input required type="date" min={getLocalDateString()} value={travelDate} onChange={e => {
+                    const nextTravelDate = e.target.value;
+                    setTravelDate(nextTravelDate);
+                    // Si el regreso quedó antes de la nueva fecha de ida, se ajusta al mismo día.
+                    if (returnDate && nextTravelDate && returnDate < nextTravelDate) setReturnDate(nextTravelDate);
+                  }} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
                 {tripType === 'ROUND_TRIP' && <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Fecha de Regreso:</label>
-                  <input required type="date" min={travelDate || getLocalDateString()} value={returnDate} onChange={e => setReturnDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
+                  <input required type="date" min={travelDate || getLocalDateString()} value={returnDate} onChange={e => {
+                    // No se permite una fecha de regreso anterior a la de ida, aunque se escriba a mano.
+                    const nextReturnDate = e.target.value;
+                    setReturnDate(travelDate && nextReturnDate && nextReturnDate < travelDate ? travelDate : nextReturnDate);
+                  }} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>}
               </div>
 
