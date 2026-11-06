@@ -530,18 +530,29 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         id: Date.now().toString(),
         ...bookingData
       };
-      if (newBooking.paymentStatus === 'PAGADO' || purchaseDate) {
-        try {
-          await fetch('/api/sales', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(created)
-          });
-        } catch (error) {
-          console.error('Error guardando compra manual en base de datos:', error);
+
+      try {
+        setIsSaving(true);
+        const isPurchase = newBooking.paymentStatus === 'PAGADO' || Boolean(purchaseDate);
+        const response = await fetch(isPurchase ? '/api/sales' : '/api/quotes/manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(created)
+        });
+        const result: { error?: string } = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'No fue posible guardar el cliente.');
         }
+
+        setBookings(currentBookings => [created, ...currentBookings]);
+      } catch (error) {
+        console.error('Error guardando cliente/venta manual en la base de datos:', error);
+        const message = error instanceof Error ? error.message : 'Error desconocido.';
+        window.alert(`No fue posible guardar el cliente en la base de datos: ${message}`);
+        return;
+      } finally {
+        setIsSaving(false);
       }
-      setBookings(currentBookings => [created, ...currentBookings]);
     }
 
     setShowAddModal(false);

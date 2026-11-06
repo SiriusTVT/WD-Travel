@@ -742,6 +742,40 @@ app.get('/api/quotes', requireAdmin, async (request, response) => {
   }
 });
 
+app.post('/api/quotes/manual', requireAdmin, async (request, response) => {
+  const quote = request.body;
+  if (
+    !quote ||
+    typeof quote !== 'object' ||
+    typeof quote.firstName !== 'string' ||
+    typeof quote.lastName !== 'string' ||
+    typeof quote.passenger !== 'string' ||
+    typeof quote.phone !== 'string' ||
+    typeof quote.cedula !== 'string' ||
+    typeof quote.route !== 'string' ||
+    typeof quote.travelDate !== 'string'
+  ) {
+    response.status(400).json({ error: 'La información del cliente es inválida.' });
+    return;
+  }
+
+  try {
+    const { _id, ...fields } = quote;
+    const id = fields.id || Date.now().toString();
+    const savedQuote = protectSensitiveFields({
+      ...fields,
+      id,
+      source: 'whatsapp',
+      createdAt: new Date()
+    });
+    await quotesCollection.insertOne(savedQuote);
+    response.status(201).json({ saved: true, id });
+  } catch (error) {
+    console.error('Error guardando el cliente registrado manualmente:', error);
+    response.status(500).json({ error: 'No fue posible guardar el cliente.' });
+  }
+});
+
 // Guardar nueva cotización
 app.post('/api/quotes', async (request, response) => {
   const quote = request.body;
