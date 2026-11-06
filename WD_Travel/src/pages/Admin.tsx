@@ -445,11 +445,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       return;
     }
 
-    const purchaseDate = completingQuote
-      ? existingBooking?.purchaseDate || new Date().toISOString().split('T')[0]
-      : newBooking.paymentStatus === 'PAGADO'
-        ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
-        : existingBooking?.purchaseDate || '';
+    const hasPaymentAgreement = newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO';
+    const purchaseDate = completingQuote || hasPaymentAgreement
+      ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
+      : existingBooking?.purchaseDate || '';
     const bookingData = {
       ...newBooking,
       paymentMethod: completingQuote && !PAYMENT_METHODS.includes(newBooking.paymentMethod)
@@ -533,7 +532,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
 
       try {
         setIsSaving(true);
-        const isPurchase = newBooking.paymentStatus === 'PAGADO' || Boolean(purchaseDate);
+        const isPurchase = newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO' || Boolean(purchaseDate);
         const response = await fetch(isPurchase ? '/api/sales' : '/api/quotes/manual', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -561,7 +560,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setEditingQuote(false);
     resetForm();
 
-    const requestedView = completingQuote || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
+    const requestedView = completingQuote || newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
     const targetView = role === 'admin' ? requestedView : 'quotes';
     setActiveView(targetView);
     if (targetView === 'purchases') {
