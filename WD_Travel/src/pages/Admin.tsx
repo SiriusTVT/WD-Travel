@@ -123,6 +123,25 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
   }, [activeView, fetchPurchases, fetchQuotes, role]);
 
+  // Mantener sincronizados los paneles administrativos cuando otro usuario
+  // registra una compra o modifica una cotización.
+  useEffect(() => {
+    if (role !== 'admin') return;
+
+    const refreshActiveView = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      if (activeView === 'purchases') {
+        void fetchPurchases();
+      } else if (activeView === 'quotes') {
+        void fetchQuotes();
+      }
+    };
+
+    const refreshInterval = window.setInterval(refreshActiveView, 10_000);
+    return () => window.clearInterval(refreshInterval);
+  }, [activeView, fetchPurchases, fetchQuotes, role]);
+
   const [newBooking, setNewBooking] = useState({
     quoteDate: new Date().toISOString().split('T')[0],
     purchaseDate: '',
