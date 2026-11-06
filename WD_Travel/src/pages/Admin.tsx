@@ -147,7 +147,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     paymentMethod: 'TRANSFERENCIA',
     totalValue: 0 as number | '',
     paymentStatus: 'PENDIENTE',
-    paidAmount: 0 as number | ''
+    paidAmount: 0 as number | '',
+    paymentDueDate: ''
   });
 
   const resetForm = () => {
@@ -177,7 +178,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentMethod: 'TRANSFERENCIA',
       totalValue: 0 as number | '',
       paymentStatus: 'PENDIENTE',
-      paidAmount: 0 as number | ''
+      paidAmount: 0 as number | '',
+      paymentDueDate: ''
     });
   };
 
@@ -218,7 +220,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentMethod: booking.paymentMethod,
       totalValue: booking.totalValue,
       paymentStatus: booking.paymentStatus,
-      paidAmount: booking.paidAmount
+      paidAmount: booking.paidAmount,
+      paymentDueDate: booking.paymentDueDate || ''
     });
     setEditingBookingId(booking.id);
     setShowAddModal(true);
@@ -338,7 +341,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       !Number.isFinite(paidAmount) ||
       paidAmount < 0 ||
       paidAmount > totalValue ||
-      (newBooking.paymentStatus === 'ABONADO' && (paidAmount <= 0 || paidAmount >= totalValue))
+      (newBooking.paymentStatus === 'ABONADO' && (
+        paidAmount <= 0 ||
+        paidAmount >= totalValue ||
+        !isValidDate(newBooking.paymentDueDate)
+      ))
     )) {
       window.alert('El valor total debe estar entre $0 y $1.000.000.000. El abono debe ser mayor que cero y menor que el total.');
       return;
@@ -454,7 +461,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentStatus: newBooking.paymentStatus,
       paidAmount: newBooking.paymentStatus === 'PAGADO' && !completingQuote
         ? totalValue
-        : Math.min(Number(newBooking.paidAmount) || 0, totalValue)
+        : Math.min(Number(newBooking.paidAmount) || 0, totalValue),
+      paymentDueDate: newBooking.paymentStatus === 'ABONADO' ? newBooking.paymentDueDate : ''
     };
 
     const finalId = editingBookingId || Date.now().toString();
@@ -869,7 +877,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     <td style={{ padding: '14px' }}>{formatCurrency(b.totalValue)}</td>
                     <td style={{ padding: '14px' }}>{formatCurrency(b.paidAmount)}</td>
                     <td style={{ padding: '14px', color: b.totalValue - b.paidAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{formatCurrency(Math.max(0, b.totalValue - b.paidAmount))}</td>
-                    <td style={{ padding: '14px', color: b.paymentStatus === 'PAGADO' ? '#16a34a' : b.paymentStatus === 'PENDIENTE' ? '#dc2626' : '#d97706', fontWeight: 'bold' }}>{b.paymentStatus}</td>
+                    <td style={{ padding: '14px', color: b.paymentStatus === 'PAGADO' ? '#16a34a' : b.paymentStatus === 'PENDIENTE' ? '#dc2626' : '#d97706', fontWeight: 'bold' }}>
+                      {b.paymentStatus}
+                      {b.paymentStatus === 'ABONADO' && b.paymentDueDate && (
+                        <div style={{ marginTop: '4px', color: '#4b5563', fontSize: '0.8rem', fontWeight: 'normal' }}>
+                          Completar antes del: {formatDisplayDate(b.paymentDueDate)}
+                        </div>
+                      )}
+                    </td>
                   </>
                 )}
                 <td style={{ padding: '14px' }}>
@@ -943,6 +958,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
             <p><strong>Valor Abonado:</strong> {formatCurrency(selectedPassenger.paidAmount)}</p>
             <p><strong>Saldo Pendiente:</strong> {formatCurrency(Math.max(0, selectedPassenger.totalValue - selectedPassenger.paidAmount))}</p>
             <p><strong>Estado del Pago:</strong> {selectedPassenger.paymentStatus}</p>
+            {selectedPassenger.paymentStatus === 'ABONADO' && selectedPassenger.paymentDueDate && (
+              <p><strong>Fecha límite para completar el pago:</strong> {formatDisplayDate(selectedPassenger.paymentDueDate)}</p>
+            )}
             <button 
               onClick={() => setSelectedPassenger(null)}
               style={{ marginTop: '20px', width: '100%', padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -1235,7 +1253,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     setNewBooking({
                       ...newBooking,
                       paymentStatus,
-                      paidAmount: paymentStatus === 'PAGADO' ? formTotalValue : paymentStatus === 'PENDIENTE' ? 0 : newBooking.paidAmount
+                      paidAmount: paymentStatus === 'PAGADO' ? formTotalValue : paymentStatus === 'PENDIENTE' ? 0 : newBooking.paidAmount,
+                      paymentDueDate: paymentStatus === 'ABONADO' ? newBooking.paymentDueDate : ''
                     });
                   }} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
                     <option value="PENDIENTE">PENDIENTE</option>
@@ -1262,6 +1281,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                         setNewBooking({ ...newBooking, paidAmount });
                       }}
                       style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ marginTop: '12px' }}>
+                    <label htmlFor="admin-payment-due-date" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha límite para completar el pago:</label>
+                    <input
+                      id="admin-payment-due-date"
+                      type="date"
+                      required
+                      value={newBooking.paymentDueDate}
+                      onChange={e => setNewBooking({ ...newBooking, paymentDueDate: e.target.value })}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                     />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontWeight: 'bold' }}>
