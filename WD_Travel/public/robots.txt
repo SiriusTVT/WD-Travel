@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /wdtraveladmin
+Disallow: /createcount
+
+Sitemap: https://wd-travel.onrender.com/sitemap.xml
