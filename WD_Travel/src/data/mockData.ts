@@ -35,6 +35,7 @@ export interface Booking {
   totalValue: number;
   paymentStatus: string;
   paidAmount: number;
+  paymentDueDate?: string;
   passengers: Passenger[];
 }
 
