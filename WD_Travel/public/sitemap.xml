@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://wd-travel.onrender.com/</loc>
+    <lastmod>2026-11-06T22:16:35+00:00</lastmod>
+    <priority>1.0000</priority>
+  </url>
+  <url>
+    <loc>https://wd-travel.onrender.com/documents/certificado-rnt.pdf</loc>
+    <lastmod>2026-11-06T22:16:35+00:00</lastmod>
+    <priority>0.6400</priority>
+  </url>
+  <url>
+    <loc>https://wd-travel.onrender.com/politica-de-privacidad</loc>
+    <lastmod>2026-11-06T22:16:35+00:00</lastmod>
+    <priority>0.6400</priority>
   </url>
 </urlset>
