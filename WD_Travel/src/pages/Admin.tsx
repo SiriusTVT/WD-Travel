@@ -34,6 +34,28 @@ const getServiceType = (booking: Booking): ServiceType => booking.serviceType ??
     : 'TIQUETE'
 );
 
+type ClientHistoryRecord = Booking & { recordType: 'quote' | 'purchase' };
+
+const normalizeClientIdentifier = (cedula: string) => cedula.replace(/[^a-z\d]/gi, '').toUpperCase();
+
+const groupBookingsByClient = (records: Booking[]) => {
+  const grouped = new Map<string, Booking[]>();
+  records.forEach(booking => {
+    const normalizedCedula = normalizeClientIdentifier(booking.cedula || '');
+    const key = normalizedCedula ? `cedula:${normalizedCedula}` : `record:${booking.id}`;
+    const clientBookings = grouped.get(key);
+    if (clientBookings) {
+      clientBookings.push(booking);
+    } else {
+      grouped.set(key, [booking]);
+    }
+  });
+  return [...grouped.entries()].map(([key, clientBookings]) => ({
+    key,
+    bookings: clientBookings
+  }));
+};
+
 const joinName = (firstName: string, lastName: string) => `${firstName.trim()} ${lastName.trim()}`.trim();
 const getPhoneParts = (phone: string) => {
   const match = phone.trim().match(/^(\+\d+)\s*(.*)$/);
@@ -74,7 +96,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const [selectedSalesYear, setSelectedSalesYear] = useState(() => getLocalDateString().slice(0, 4));
   const [search, setSearch] = useState('');
   const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
-  const [clientHistory, setClientHistory] = useState<(Booking & { recordType: 'quote' | 'purchase' })[]>([]);
+  const [clientHistory, setClientHistory] = useState<ClientHistoryRecord[]>([]);
+  const [expandedClientKey, setExpandedClientKey] = useState<string | null>(null);
+  const [expandedClientHistory, setExpandedClientHistory] = useState<ClientHistoryRecord[]>([]);
+  const [isLoadingExpandedHistory, setIsLoadingExpandedHistory] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
@@ -148,13 +173,43 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   };
 
   const fetchClientHistory = useCallback(async (cedula: string) => {
-    const response = await fetch(`/api/client-history/${encodeURIComponent(cedula)}`);
-    const result: (Booking & { recordType: 'quote' | 'purchase' })[] | { error?: string } = await response.json();
+    const normalizedCedula = normalizeClientIdentifier(cedula);
+    const response = await fetch(`/api/client-history/${encodeURIComponent(normalizedCedula)}`);
+    const result: ClientHistoryRecord[] | { error?: string } = await response.json();
     if (!response.ok || !Array.isArray(result)) {
       throw new Error(!Array.isArray(result) && result.error ? result.error : 'No fue posible consultar el historial del cliente.');
     }
     return result;
   }, []);
+
+  const toggleClientHistory = async (clientKey: string, booking: Booking, groupBookings: Booking[]) => {
+    if (expandedClientKey === clientKey) {
+      setExpandedClientKey(null);
+      setExpandedClientHistory([]);
+      return;
+    }
+
+    setExpandedClientKey(clientKey);
+    setExpandedClientHistory([]);
+    if (!normalizeClientIdentifier(booking.cedula || '')) {
+      setExpandedClientHistory(groupBookings.map(record => ({
+        ...record,
+        recordType: record.purchaseDate ? 'purchase' : 'quote'
+      })));
+      return;
+    }
+
+    setIsLoadingExpandedHistory(true);
+    try {
+      setExpandedClientHistory(await fetchClientHistory(booking.cedula));
+    } catch (error) {
+      console.error('Error consultando los viajes agrupados del cliente:', error);
+      setExpandedClientKey(null);
+      window.alert(error instanceof Error ? error.message : 'No fue posible consultar los viajes del cliente.');
+    } finally {
+      setIsLoadingExpandedHistory(false);
+    }
+  };
 
   const fetchPurchases = useCallback(async () => {
     if (role !== 'admin') return;
@@ -221,11 +276,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           })
           .catch(error => console.error('Error actualizando el historial de viajes:', error));
       }
+      if (expandedClientKey?.startsWith('cedula:')) {
+        void fetchClientHistory(expandedClientKey.slice('cedula:'.length))
+          .then(setExpandedClientHistory)
+          .catch(error => console.error('Error actualizando los viajes agrupados del cliente:', error));
+      }
     };
 
     const refreshInterval = window.setInterval(refreshActiveView, 5_000);
     return () => window.clearInterval(refreshInterval);
-  }, [activeView, fetchClientHistory, fetchPurchases, fetchQuotes, role, selectedPassengerCedula, selectedPassengerId]);
+  }, [activeView, expandedClientKey, fetchClientHistory, fetchPurchases, fetchQuotes, role, selectedPassengerCedula, selectedPassengerId]);
 
   useEffect(() => {
     if (!showAddModal || !lockedCedula) return;
@@ -360,22 +420,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setEditingQuote(true);
   };
 
-  const showClientProfile = async (booking: Booking) => {
-    setSelectedPassenger(booking);
-    setClientHistory([]);
-    if (!booking.cedula) return;
-
-    setIsLoadingHistory(true);
-    try {
-      setClientHistory(await fetchClientHistory(booking.cedula));
-    } catch (error) {
-      console.error('Error consultando el historial de viajes del cliente:', error);
-      window.alert(error instanceof Error ? error.message : 'No fue posible consultar el historial del cliente.');
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
   const lookupClientByDocument = async () => {
     const cedula = search.trim();
     setClientHistory([]);
@@ -419,6 +463,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
 
     setBookings(currentBookings => currentBookings.filter(currentBooking => currentBooking.id !== booking.id));
+    setExpandedClientHistory(currentHistory => currentHistory.filter(record => record.id !== booking.id));
     setSelectedPassenger(currentPassenger => currentPassenger?.id === booking.id ? null : currentPassenger);
   };
 
@@ -747,13 +792,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
   };
 
-  const searchedBookings = bookings.filter(b =>
-    b.passenger.toLowerCase().includes(search.toLowerCase()) ||
-    b.phone.includes(search) ||
-    b.cedula.toLowerCase().includes(search.toLowerCase())
-  );
-  const pendingQuotes = searchedBookings.filter(booking => !booking.purchaseDate);
-  const purchases = searchedBookings.filter(booking => Boolean(booking.purchaseDate));
+  const searchTerm = search.trim().toLowerCase();
+  const matchesSearch = (booking: Booking) =>
+    !searchTerm ||
+    (booking.passenger || '').toLowerCase().includes(searchTerm) ||
+    (booking.phone || '').toLowerCase().includes(searchTerm) ||
+    (booking.cedula || '').toLowerCase().includes(searchTerm) ||
+    normalizeClientIdentifier(booking.cedula || '').includes(normalizeClientIdentifier(searchTerm));
+  const pendingQuoteGroups = groupBookingsByClient(bookings.filter(booking => !booking.purchaseDate))
+    .filter(group => group.bookings.some(matchesSearch));
+  const purchaseGroups = groupBookingsByClient(bookings.filter(booking => Boolean(booking.purchaseDate)))
+    .filter(group => group.bookings.some(matchesSearch));
   const allPurchases = bookings.filter(booking => Boolean(booking.purchaseDate));
   const filteredSales = allPurchases.filter(booking => {
     if (salesPeriod === 'all') return true;
@@ -772,7 +821,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     (total, booking) => total + Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)),
     0
   );
-  const filteredBookings = activeView === 'quotes' ? pendingQuotes : purchases;
+  const filteredClientGroups = activeView === 'quotes' ? pendingQuoteGroups : purchaseGroups;
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
   const formatAmountInput = (amount: number | '') => amount === '' ? '' : amount.toLocaleString('es-CO');
@@ -839,7 +888,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           }}
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'quotes' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'quotes' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
         >
-          Cotizaciones pendientes ({pendingQuotes.length})
+          Cotizaciones pendientes ({pendingQuoteGroups.length})
         </button>
         {role === 'admin' && <button
           type="button"
@@ -851,7 +900,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           }}
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'purchases' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'purchases' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <span>Compras registradas ({purchases.length})</span>
+          <span>Compras registradas ({purchaseGroups.length})</span>
           {isLoadingPurchases && <span style={{ fontSize: '0.8rem' }}>🔄</span>}
         </button>}
         {role === 'admin' && <button
@@ -979,33 +1028,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
           <thead>
             <tr style={{ backgroundColor: '#2D60A8', color: '#fff' }}>
-              <th style={{ padding: '14px' }}>{activeView === 'quotes' ? 'FECHA DE COTIZACIÓN' : 'FECHA DE COMPRA'}</th>
-              <th style={{ padding: '14px' }}>PASAJERO</th>
+              <th style={{ padding: '14px' }}>CLIENTE</th>
+              <th style={{ padding: '14px' }}>CÉDULA</th>
               <th style={{ padding: '14px' }}>CELULAR</th>
-              <th style={{ padding: '14px' }}>RUTA</th>
-              <th style={{ padding: '14px' }}>TIPO DE VIAJE</th>
-              <th style={{ padding: '14px' }}>FECHA VIAJE</th>
-              <th style={{ padding: '14px' }}>FECHA REGRESO / SALIDA</th>
-              <th style={{ padding: '14px' }}>TIPO</th>
-              <th style={{ padding: '14px' }}>VIAJEROS</th>
-              {activeView === 'purchases' && (
-                <>
-                  <th style={{ padding: '14px' }}>COD RESERVA</th>
-                  <th style={{ padding: '14px' }}>AEROLÍNEA</th>
-                  <th style={{ padding: '14px' }}>PAGO</th>
-                  <th style={{ padding: '14px' }}>VALOR TOTAL</th>
-                  <th style={{ padding: '14px' }}>ABONADO</th>
-                  <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
-                  <th style={{ padding: '14px' }}>ESTADO DEL PAGO</th>
-                </>
-              )}
-              <th style={{ padding: '14px' }}>ACCIONES</th>
+              <th style={{ padding: '14px' }}>VIAJES EN ESTA SECCIÓN</th>
+              <th style={{ padding: '14px' }}>HISTORIAL COMPLETO</th>
             </tr>
           </thead>
           <tbody>
-            {filteredBookings.length === 0 ? (
+            {filteredClientGroups.length === 0 ? (
               <tr>
-                <td colSpan={activeView === 'quotes' ? 10 : 17} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
                   {activeView === 'quotes'
                     ? 'No hay cotizaciones pendientes.'
                     : isLoadingPurchases
@@ -1013,114 +1046,124 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                       : 'Todavía no hay compras registradas.'}
                 </td>
               </tr>
-            ) : filteredBookings.map((b) => (
-              <tr key={b.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '14px' }}>{formatDisplayDate(activeView === 'quotes' ? (b.quoteDate || b.purchaseDate) : b.purchaseDate)}</td>
-                <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>
-                  {b.passenger}
-                  <div style={{ marginTop: '4px', fontWeight: 'normal', fontSize: '0.85rem', color: '#4b5563' }}>
-                    <div>Tipo de documento: {b.documentType || 'Cédula de ciudadanía'}</div>
-                    <div>Cédula: {b.cedula || 'No registrada'}</div>
-                  </div>
-                  {b.passengers?.length > 1 && (
-                    <details style={{ marginTop: '6px', fontWeight: 'normal' }}>
-                      <summary style={{ color: '#2D60A8', cursor: 'pointer' }}>Ver {b.passengers.length} pasajeros</summary>
-                      <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
-                        {b.passengers.map((passenger, index) => (
-                          <div key={`${b.id}-${index}`} style={{ marginBottom: index < b.passengers.length - 1 ? '6px' : 0 }}>
-                            <strong>{passenger.name}</strong>
-                            <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
-                              <div>Tipo de documento: {passenger.documentType || 'Cédula de ciudadanía'}</div>
-                              <div>Cédula: {passenger.cedula || 'No registrada'}</div>
-                            </div>
-                          </div>
-                        ))}
+            ) : filteredClientGroups.map(group => {
+              const client = group.bookings[0];
+              const expanded = expandedClientKey === group.key;
+              return (
+                <React.Fragment key={group.key}>
+                  <tr style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: expanded ? '#f8fafc' : '#fff' }}>
+                    <td style={{ padding: '14px', fontWeight: 'bold', color: '#111827' }}>
+                      {client.passenger || 'Cliente sin nombre'}
+                      <div style={{ marginTop: '4px', fontWeight: 'normal', fontSize: '0.85rem', color: '#4b5563' }}>
+                        {client.documentType || 'Documento no especificado'}
                       </div>
-                    </details>
-                  )}
-                </td>
-                <td style={{ padding: '14px' }}>{formatPhoneForDisplay(b.phone)}</td>
-                <td style={{ padding: '14px', minWidth: '210px', lineHeight: 1.6 }}>
-                  {getBookingRoute(b).map((stop, index, stops) => (
-                    <div key={`${b.id}-route-${index}`}>
-                      {stop}{index < stops.length - 1 ? ' ➔' : ''}
-                    </div>
-                  ))}
-                </td>
-                <td style={{ padding: '14px' }}>{getServiceType(b) === 'HOTEL'
-                  ? 'ESTADÍA'
-                  : (b.tripType ?? (b.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'IDA Y VUELTA' : 'SOLO IDA'}</td>
-                <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
-                <td style={{ padding: '14px' }}>{b.returnDate ? formatDisplayDate(b.returnDate) : '—'}</td>
-                <td style={{ padding: '14px' }}>
-                  {SERVICE_TYPE_LABELS[getServiceType(b)]}
-                  {b.isPackage && b.packageType && (
-                    <div style={{ marginTop: '4px', color: '#4b5563' }}>
-                      {getPackageTypeLabel(b.packageType)}
-                      {b.packageName && <div>{b.packageName}</div>}
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '14px' }}>
-                  {b.adultCount ?? 'Sin dato'} adulto(s), {b.childCount ?? 'Sin dato'} niño(s)
-                  {(b.childAges?.length ?? 0) > 0 && (
-                    <div style={{ marginTop: '4px', color: '#4b5563' }}>
-                      Edades: {b.childAges?.map(age => `${age} años`).join(', ')}
-                    </div>
-                  )}
-                </td>
-                {activeView === 'purchases' && (
-                  <>
-                    <td style={{ padding: '14px', color: b.bookingCode === 'PENDIENTE' ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{b.bookingCode || 'PENDIENTE'}</td>
-                    <td style={{ padding: '14px' }}>{b.airline}</td>
-                    <td style={{ padding: '14px' }}>{b.paymentMethod}</td>
-                    <td style={{ padding: '14px' }}>{formatCurrency(b.totalValue)}</td>
-                    <td style={{ padding: '14px' }}>{formatCurrency(b.paidAmount)}</td>
-                    <td style={{ padding: '14px', color: b.totalValue - b.paidAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{formatCurrency(Math.max(0, b.totalValue - b.paidAmount))}</td>
-                    <td style={{ padding: '14px', color: b.paymentStatus === 'PAGADO' ? '#16a34a' : b.paymentStatus === 'PENDIENTE' ? '#dc2626' : '#d97706', fontWeight: 'bold' }}>
-                      {b.paymentStatus}
-                      {b.paymentStatus === 'ABONADO' && b.paymentDueDate && (
-                        <div style={{ marginTop: '4px', color: '#4b5563', fontSize: '0.8rem', fontWeight: 'normal' }}>
-                          Completar antes del: {formatDisplayDate(b.paymentDueDate)}
-                        </div>
-                      )}
                     </td>
-                  </>
-                )}
-                <td style={{ padding: '14px' }}>
-                  {activeView === 'quotes' && (
-                    <button
-                      onClick={() => handleCompletePurchaseClick(b)}
-                      style={{ padding: '6px 14px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Completar compra
-                    </button>
+                    <td style={{ padding: '14px' }}>{client.cedula || 'No registrada'}</td>
+                    <td style={{ padding: '14px' }}>{formatPhoneForDisplay(client.phone)}</td>
+                    <td style={{ padding: '14px' }}>
+                      {group.bookings.length} registro(s) de {activeView === 'quotes' ? 'cotización' : 'compra'}
+                    </td>
+                    <td style={{ padding: '14px' }}>
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        onClick={() => void toggleClientHistory(group.key, client, group.bookings)}
+                        style={{ padding: '7px 12px', backgroundColor: expanded ? '#e2e8f0' : '#2D60A8', color: expanded ? '#1f2937' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        {expanded ? 'Ocultar viajes' : 'Ver viajes'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expanded && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '16px 22px 22px', backgroundColor: '#f8fafc' }}>
+                        <h3 style={{ margin: '0 0 14px', color: '#1f3f70' }}>
+                          Historial de viajes de {client.passenger || 'este cliente'}
+                        </h3>
+                        {isLoadingExpandedHistory ? (
+                          <p role="status">Consultando cotizaciones y compras...</p>
+                        ) : expandedClientHistory.length === 0 ? (
+                          <p>No hay viajes registrados para esta cédula.</p>
+                        ) : (
+                          <div style={{ display: 'grid', gap: '12px' }}>
+                            {expandedClientHistory.map((trip, index) => {
+                              const serviceType = getServiceType(trip);
+                              const tripRoute = getBookingRoute(trip).filter(Boolean).join(' ➔ ') || 'Destino no registrado';
+                              const isQuote = trip.recordType === 'quote';
+                              return (
+                                <article key={`${trip.recordType}-${trip.id}`} style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #dbe3ee', borderRadius: '10px' }}>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+                                    <strong style={{ color: '#1f3f70' }}>
+                                      Viaje {index + 1} · {isQuote ? 'Cotización' : 'Compra'}
+                                    </strong>
+                                    <span style={{ color: '#4b5563' }}>
+                                      Registrado: {formatDisplayDate(isQuote ? (trip.quoteDate || trip.purchaseDate) : trip.purchaseDate)}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '8px 18px', color: '#374151' }}>
+                                    <div><strong>Destino / ruta:</strong> {tripRoute}</div>
+                                    <div><strong>Servicio:</strong> {SERVICE_TYPE_LABELS[serviceType]}
+                                      {trip.packageType ? ` · ${getPackageTypeLabel(trip.packageType)}` : ''}
+                                      {trip.packageName ? ` · ${trip.packageName}` : ''}
+                                    </div>
+                                    <div><strong>Fecha de viaje:</strong> {formatDisplayDate(trip.travelDate)}</div>
+                                    <div><strong>Fecha de regreso / salida:</strong> {trip.returnDate ? formatDisplayDate(trip.returnDate) : '—'}</div>
+                                    <div><strong>Tipo de viaje:</strong> {serviceType === 'HOTEL'
+                                      ? 'Estadía'
+                                      : (trip.tripType ?? (trip.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'}</div>
+                                    <div><strong>Código de reserva:</strong> {trip.bookingCode || 'PENDIENTE'}</div>
+                                    <div><strong>Aerolínea:</strong> {trip.airline || 'Por definir'}</div>
+                                    <div><strong>Viajeros:</strong> {trip.adultCount ?? 'Sin dato'} adulto(s), {trip.childCount ?? 'Sin dato'} niño(s)
+                                      {(trip.childAges?.length ?? 0) > 0 ? ` · Edades: ${trip.childAges?.join(', ')}` : ''}
+                                    </div>
+                                    <div><strong>Pasajeros:</strong> {trip.passengers?.length
+                                      ? trip.passengers.map(passenger => `${passenger.name} (${passenger.documentType || 'Documento'}: ${passenger.cedula})`).join('; ')
+                                      : trip.passenger || 'Sin dato'}</div>
+                                    {!isQuote && <>
+                                      <div><strong>Estado del pago:</strong> {trip.paymentStatus || 'Sin dato'}</div>
+                                      <div><strong>Valor / abonado:</strong> {formatCurrency(Number(trip.totalValue) || 0)} / {formatCurrency(Number(trip.paidAmount) || 0)}</div>
+                                      <div><strong>Método de pago:</strong> {trip.paymentMethod || 'Sin dato'}</div>
+                                      {trip.paymentDueDate && <div><strong>Fecha límite de pago:</strong> {formatDisplayDate(trip.paymentDueDate)}</div>}
+                                    </>}
+                                  </div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px' }}>
+                                    {isQuote && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleCompletePurchaseClick(trip)}
+                                        style={{ padding: '6px 12px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                      >
+                                        Completar compra
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => isQuote ? void handleEditQuoteClick(trip) : void handleEditClick(trip)}
+                                      style={{ padding: '6px 12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                    >
+                                      Editar viaje
+                                    </button>
+                                    {role === 'admin' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDeleteClick(trip)}
+                                        style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                      >
+                                        Eliminar viaje
+                                      </button>
+                                    )}
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
                   )}
-                  {activeView === 'purchases' && (
-                    <button
-                      onClick={() => void showClientProfile(b)}
-                      style={{ padding: '6px 14px', backgroundColor: '#f3f4f6', color: '#2D60A8', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Ver Perfil
-                    </button>
-                  )}
-                  <button
-                    onClick={() => activeView === 'quotes' ? handleEditQuoteClick(b) : handleEditClick(b)}
-                    style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    Editar
-                  </button>
-                  {role === 'admin' && (
-                    <button
-                      onClick={() => void handleDeleteClick(b)}
-                      style={{ marginLeft: '8px', padding: '6px 14px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>}
