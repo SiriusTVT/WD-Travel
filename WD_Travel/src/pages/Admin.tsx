@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { type Booking } from '../data/mockData';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { SERVICE_TYPE_LABELS, type Booking, type ServiceType } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { CallingCodeSelector } from '../components/CallingCodeSelector';
 import { isValidCallingCode } from '../data/callingCodes';
@@ -28,6 +28,12 @@ const getNameParts = (firstName = '', lastName = '', fullName = '') => {
   };
 };
 
+const getServiceType = (booking: Booking): ServiceType => booking.serviceType ?? (
+  booking.isPackage
+    ? (booking.packageType || booking.packageName ? 'PAQUETES' : 'TIQUETE_HOTEL')
+    : 'TIQUETE'
+);
+
 const joinName = (firstName: string, lastName: string) => `${firstName.trim()} ${lastName.trim()}`.trim();
 const getPhoneParts = (phone: string) => {
   const match = phone.trim().match(/^(\+\d+)\s*(.*)$/);
@@ -42,8 +48,9 @@ const formatPhoneForDisplay = (phone: string) =>
     : 'No registrado';
 const PAYMENT_METHODS = ['TRANSFERENCIA', 'EFECTIVO', 'TARJETA'];
 
-const getBookingRoute = (booking: Pick<Booking, 'route' | 'tripType' | 'returnDate'>) => {
+const getBookingRoute = (booking: Pick<Booking, 'route' | 'tripType' | 'returnDate' | 'serviceType'>) => {
   const routeParts = booking.route.split(' ➔ ').map(stop => stop.trim()).filter(Boolean);
+  if (booking.serviceType === 'HOTEL') return [routeParts[0] || ''];
   const origin = routeParts[0] || '';
   const isRoundTrip = (booking.tripType ?? (booking.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP';
   const lastStop = routeParts[routeParts.length - 1] || '';
@@ -67,8 +74,11 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const [selectedSalesYear, setSelectedSalesYear] = useState(() => getLocalDateString().slice(0, 4));
   const [search, setSearch] = useState('');
   const [selectedPassenger, setSelectedPassenger] = useState<Booking | null>(null);
+  const [clientHistory, setClientHistory] = useState<(Booking & { recordType: 'quote' | 'purchase' })[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [lockedCedula, setLockedCedula] = useState('');
   const [completingQuote, setCompletingQuote] = useState(false);
   const [editingQuote, setEditingQuote] = useState(false);
   // Estados de ubicación
@@ -76,21 +86,89 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const [destination, setDestination] = useState('');
   const [isLoadingPurchases, setIsLoadingPurchases] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const lockRenewalRef = useRef<number | null>(null);
+  const selectedPassengerCedula = selectedPassenger?.cedula;
+  const selectedPassengerId = selectedPassenger?.id;
+
+  const acquireClientLock = async (cedula: string, recordId = '') => {
+    try {
+      const response = await fetch('/api/client-locks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cedula, recordId })
+      });
+      const result: { error?: string; lockedBy?: string } = await response.json();
+      if (!response.ok) {
+        const message = response.status === 409
+          ? `Este cliente está siendo editado por ${result.lockedBy || 'otro asesor'}.`
+          : result.error || 'No fue posible bloquear la edición del cliente.';
+        window.alert(message);
+        return false;
+      }
+      setLockedCedula(cedula);
+      return true;
+    } catch (error) {
+      console.error('Error bloqueando la edición del cliente:', error);
+      window.alert('No fue posible confirmar el bloqueo del cliente. Verifica tu conexión e inténtalo nuevamente.');
+      return false;
+    }
+  };
+
+  const releaseClientLock = async (cedula = lockedCedula) => {
+    if (!cedula) return;
+    try {
+      const response = await fetch(`/api/client-locks/${encodeURIComponent(cedula)}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error('El servidor no pudo liberar el bloqueo del cliente.');
+      }
+      setLockedCedula(currentCedula => currentCedula === cedula ? '' : currentCedula);
+    } catch (error) {
+      console.error('Error liberando el bloqueo del cliente:', error);
+    }
+  };
+
+  const handleClientDocumentBlur = async () => {
+    const cedula = newBooking.cedula;
+    if (!cedula || cedula === lockedCedula) return;
+    const previousCedula = lockedCedula;
+    if (await acquireClientLock(cedula, editingBookingId || '')) {
+      if (previousCedula && previousCedula !== cedula) {
+        await releaseClientLock(previousCedula);
+      }
+    }
+  };
+
+  const closeEditingModal = async () => {
+    await releaseClientLock();
+    setShowAddModal(false);
+    setEditingBookingId(null);
+    setCompletingQuote(false);
+    setEditingQuote(false);
+    resetForm();
+  };
+
+  const fetchClientHistory = useCallback(async (cedula: string) => {
+    const response = await fetch(`/api/client-history/${encodeURIComponent(cedula)}`);
+    const result: (Booking & { recordType: 'quote' | 'purchase' })[] | { error?: string } = await response.json();
+    if (!response.ok || !Array.isArray(result)) {
+      throw new Error(!Array.isArray(result) && result.error ? result.error : 'No fue posible consultar el historial del cliente.');
+    }
+    return result;
+  }, []);
 
   const fetchPurchases = useCallback(async () => {
     if (role !== 'admin') return;
 
     try {
       const response = await fetch('/api/sales');
-      if (response.ok) {
-        const salesData: Booking[] = await response.json();
-        setBookings(currentBookings => {
-          const nonPurchases = currentBookings.filter(
-            b => !salesData.some(s => s.id === b.id)
-          );
-          return [...salesData, ...nonPurchases];
-        });
-      }
+      if (!response.ok) throw new Error('El servidor no pudo consultar las compras registradas.');
+      const salesData: Booking[] = await response.json();
+      setBookings(currentBookings => {
+        const nonPurchases = currentBookings.filter(
+          b => !salesData.some(s => s.id === b.id)
+        );
+        return [...salesData, ...nonPurchases];
+      });
     } catch (error) {
       console.error('Error al consultar compras registradas:', error);
     } finally {
@@ -101,15 +179,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const fetchQuotes = useCallback(async () => {
     try {
       const response = await fetch('/api/quotes');
-      if (response.ok) {
-        const quotesData: Booking[] = await response.json();
-        setBookings(currentBookings => {
-          const nonQuotes = currentBookings.filter(
-            b => !quotesData.some(q => q.id === b.id) && Boolean(b.purchaseDate)
-          );
-          return [...quotesData, ...nonQuotes];
-        });
-      }
+      if (!response.ok) throw new Error('El servidor no pudo consultar las cotizaciones pendientes.');
+      const quotesData: Booking[] = await response.json();
+      setBookings(currentBookings => {
+        const nonQuotes = currentBookings.filter(
+          b => !quotesData.some(q => q.id === b.id) && Boolean(b.purchaseDate)
+        );
+        return [...quotesData, ...nonQuotes];
+      });
     } catch (error) {
       console.error('Error al consultar cotizaciones pendientes:', error);
     }
@@ -123,11 +200,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
   }, [activeView, fetchPurchases, fetchQuotes, role]);
 
-  // Mantener sincronizados los paneles administrativos cuando otro usuario
-  // registra una compra o modifica una cotización.
+  // Mantener sincronizadas las vistas y el historial cuando otra persona cambia un registro.
   useEffect(() => {
-    if (role !== 'admin') return;
-
     const refreshActiveView = () => {
       if (document.visibilityState !== 'visible') return;
 
@@ -136,11 +210,39 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       } else if (activeView === 'quotes') {
         void fetchQuotes();
       }
+      if (selectedPassengerCedula) {
+        void fetchClientHistory(selectedPassengerCedula)
+          .then(history => {
+            setClientHistory(history);
+            setSelectedPassenger(currentPassenger => currentPassenger
+              ? history.find(record => record.id === selectedPassengerId) || currentPassenger
+              : null
+            );
+          })
+          .catch(error => console.error('Error actualizando el historial de viajes:', error));
+      }
     };
 
-    const refreshInterval = window.setInterval(refreshActiveView, 10_000);
+    const refreshInterval = window.setInterval(refreshActiveView, 5_000);
     return () => window.clearInterval(refreshInterval);
-  }, [activeView, fetchPurchases, fetchQuotes, role]);
+  }, [activeView, fetchClientHistory, fetchPurchases, fetchQuotes, role, selectedPassengerCedula, selectedPassengerId]);
+
+  useEffect(() => {
+    if (!showAddModal || !lockedCedula) return;
+
+    lockRenewalRef.current = window.setInterval(() => {
+      void acquireClientLock(lockedCedula, editingBookingId || '').then(renewed => {
+        if (!renewed) setLockedCedula('');
+      });
+    }, 30_000);
+
+    return () => {
+      if (lockRenewalRef.current !== null) {
+        window.clearInterval(lockRenewalRef.current);
+        lockRenewalRef.current = null;
+      }
+    };
+  }, [showAddModal, lockedCedula, editingBookingId]);
 
   const [newBooking, setNewBooking] = useState({
     quoteDate: new Date().toISOString().split('T')[0],
@@ -158,6 +260,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     adultCount: 1 as number | '',
     childCount: 0 as number | '',
     childAges: [] as (number | '')[],
+    serviceType: 'PAQUETES' as ServiceType,
     isTicket: false,
     isPackage: true,
     packageType: '' as PackageType | '',
@@ -189,6 +292,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       adultCount: 1,
       childCount: 0,
       childAges: [],
+      serviceType: 'PAQUETES',
       isTicket: false,
       isPackage: true,
       packageType: '' as PackageType | '',
@@ -202,12 +306,15 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     });
   };
 
-  const handleEditClick = (booking: Booking) => {
+  const handleEditClick = async (booking: Booking) => {
+    if (!await acquireClientLock(booking.cedula, booking.id)) return false;
+
     setCompletingQuote(false);
     setEditingQuote(false);
     const routeParts = getBookingRoute(booking);
-    setOrigin(routeParts[0] || '');
-    setDestination(routeParts[1] || '');
+    const serviceType = getServiceType(booking);
+    setOrigin(serviceType === 'HOTEL' ? '' : routeParts[0] || '');
+    setDestination(serviceType === 'HOTEL' ? routeParts[0] || '' : routeParts[1] || '');
     const primaryName = getNameParts(
       booking.firstName || booking.passengers?.[0]?.firstName,
       booking.lastName || booking.passengers?.[0]?.lastName,
@@ -231,8 +338,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         { length: booking.childCount ?? 0 },
         (_, index) => booking.childAges?.[index] ?? ''
       ),
-      isTicket: booking.isTicket,
-      isPackage: booking.isPackage,
+      serviceType,
+      isTicket: serviceType === 'TIQUETE' || serviceType === 'TIQUETE_HOTEL',
+      isPackage: serviceType === 'PAQUETES',
       packageType: booking.packageType ?? '',
       packageName: booking.packageName ?? '',
       airline: booking.airline,
@@ -244,11 +352,48 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     });
     setEditingBookingId(booking.id);
     setShowAddModal(true);
+    return true;
   };
 
-  const handleEditQuoteClick = (booking: Booking) => {
-    handleEditClick(booking);
+  const handleEditQuoteClick = async (booking: Booking) => {
+    if (!await handleEditClick(booking)) return;
     setEditingQuote(true);
+  };
+
+  const showClientProfile = async (booking: Booking) => {
+    setSelectedPassenger(booking);
+    setClientHistory([]);
+    if (!booking.cedula) return;
+
+    setIsLoadingHistory(true);
+    try {
+      setClientHistory(await fetchClientHistory(booking.cedula));
+    } catch (error) {
+      console.error('Error consultando el historial de viajes del cliente:', error);
+      window.alert(error instanceof Error ? error.message : 'No fue posible consultar el historial del cliente.');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const lookupClientByDocument = async () => {
+    const cedula = search.trim();
+    setClientHistory([]);
+    setIsLoadingHistory(true);
+    try {
+      const history = await fetchClientHistory(cedula);
+      if (!history.length) {
+        window.alert('No hay viajes registrados para esta cédula.');
+        return;
+      }
+      setClientHistory(history);
+      setSelectedPassenger(history[0]);
+    } catch (error) {
+      console.error('Error consultando el historial de viajes por cédula:', error);
+      window.alert(error instanceof Error ? error.message : 'No fue posible consultar el historial del cliente.');
+    } finally {
+      setIsLoadingHistory(false);
+    }
   };
 
   const handleDeleteClick = async (booking: Booking) => {
@@ -277,8 +422,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setSelectedPassenger(currentPassenger => currentPassenger?.id === booking.id ? null : currentPassenger);
   };
 
-  const handleCompletePurchaseClick = (booking: Booking) => {
-    handleEditClick(booking);
+  const handleCompletePurchaseClick = async (booking: Booking) => {
+    if (!await handleEditClick(booking)) return;
     setNewBooking(current => ({
       ...current,
       bookingCode: booking.bookingCode === 'PENDIENTE' ? '' : booking.bookingCode,
@@ -324,14 +469,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       newBooking.childAges.some(age =>
         age === '' || !Number.isInteger(Number(age)) || Number(age) < 0 || Number(age) > MAX_CHILD_AGE
       );
-    const hasInvalidRoute =
-      !isValidLocation(origin) ||
-      !isValidLocation(destination) ||
-      origin === destination;
+    const hasInvalidRoute = !isValidLocation(destination) || (
+      newBooking.serviceType !== 'HOTEL' &&
+      (!isValidLocation(origin) || origin === destination)
+    );
     const hasInvalidDates =
       !isValidDate(newBooking.travelDate) ||
       (!editingBookingId && newBooking.travelDate < getLocalDateString()) ||
-      (newBooking.tripType === 'ROUND_TRIP' && (
+      ((newBooking.serviceType === 'HOTEL' || newBooking.tripType === 'ROUND_TRIP') && (
         !isValidDate(newBooking.returnDate) ||
         newBooking.returnDate < newBooking.travelDate
       ));
@@ -373,15 +518,25 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     if (completingQuote && (
       !newBooking.bookingCode.trim() ||
       newBooking.bookingCode.trim().length > 30 ||
-      !newBooking.airline.trim() ||
-      newBooking.airline.trim().length > 80 ||
+      (newBooking.serviceType !== 'HOTEL' && (
+        !newBooking.airline.trim() ||
+        newBooking.airline.trim().length > 80
+      )) ||
       totalValue <= 0
     )) {
       window.alert('Completa el código de reserva, la aerolínea y un precio mayor que cero para registrar la compra.');
       return;
     }
 
-    const finalRoute = [origin, destination, ...(newBooking.tripType === 'ROUND_TRIP' ? [origin] : [])].join(' ➔ ');
+    const previousLockedCedula = lockedCedula;
+    if (!await acquireClientLock(newBooking.cedula, editingBookingId || '')) return;
+    if (previousLockedCedula && previousLockedCedula !== newBooking.cedula) {
+      await releaseClientLock(previousLockedCedula);
+    }
+
+    const finalRoute = newBooking.serviceType === 'HOTEL'
+      ? destination
+      : [origin, destination, ...(newBooking.tripType === 'ROUND_TRIP' ? [origin] : [])].join(' ➔ ');
     const firstName = newBooking.firstName.trim();
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
@@ -407,8 +562,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       adultCount: Number(newBooking.adultCount),
       childCount: Number(newBooking.childCount),
       childAges: newBooking.childAges.map(Number),
-      isTicket: newBooking.isTicket,
-      isPackage: newBooking.isPackage,
+      serviceType: newBooking.serviceType,
+      isTicket: newBooking.serviceType === 'TIQUETE' || newBooking.serviceType === 'TIQUETE_HOTEL',
+      isPackage: newBooking.serviceType === 'PAQUETES',
       packageType: newBooking.isPackage ? newBooking.packageType || undefined : undefined,
       packageName: newBooking.isPackage ? newBooking.packageName.trim() || undefined : undefined,
       passengers: editingBookingId && existingBooking?.passengers.length
@@ -459,6 +615,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       setShowAddModal(false);
       setEditingBookingId(null);
       setEditingQuote(false);
+      await releaseClientLock(newBooking.cedula);
       resetForm();
       void fetchQuotes();
       return;
@@ -483,7 +640,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentDueDate: newBooking.paymentStatus === 'ABONADO' ? newBooking.paymentDueDate : ''
     };
 
-    const finalId = editingBookingId || Date.now().toString();
+    const finalId = editingBookingId || crypto.randomUUID();
     const finalBooking: Booking = {
       ...bookingData,
       id: finalId,
@@ -545,7 +702,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       }
     } else {
       const created: Booking = {
-        id: Date.now().toString(),
+        id: finalId,
         ...bookingData
       };
 
@@ -577,6 +734,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setEditingBookingId(null);
     setCompletingQuote(false);
     setEditingQuote(false);
+    await releaseClientLock(newBooking.cedula);
     resetForm();
 
     const requestedView = completingQuote || newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
@@ -592,7 +750,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const searchedBookings = bookings.filter(b =>
     b.passenger.toLowerCase().includes(search.toLowerCase()) ||
     b.phone.includes(search) ||
-    b.cedula.includes(search)
+    b.cedula.toLowerCase().includes(search.toLowerCase())
   );
   const pendingQuotes = searchedBookings.filter(booking => !booking.purchaseDate);
   const purchases = searchedBookings.filter(booking => Boolean(booking.purchaseDate));
@@ -637,6 +795,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         <button
           onClick={() => {
             setEditingBookingId(null);
+            setLockedCedula('');
             setEditingQuote(false);
             setCompletingQuote(false);
             resetForm();
@@ -657,6 +816,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #d1d5db', fontSize: '1rem' }}
         />
+        {/^[a-z\d]{5,15}$/i.test(search.trim()) && (
+          <button
+            type="button"
+            disabled={isLoadingHistory}
+            onClick={() => void lookupClientByDocument()}
+            style={{ marginTop: '8px', padding: '9px 14px', border: '1px solid #2D60A8', borderRadius: '8px', color: '#2D60A8', background: '#fff', fontWeight: 'bold', cursor: isLoadingHistory ? 'wait' : 'pointer' }}
+          >
+            {isLoadingHistory ? 'Consultando historial...' : 'Consultar todos los viajes de esta cédula'}
+          </button>
+        )}
       </div>}
 
       <div role="tablist" aria-label="Secciones de administración" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #d1d5db' }}>
@@ -816,7 +985,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               <th style={{ padding: '14px' }}>RUTA</th>
               <th style={{ padding: '14px' }}>TIPO DE VIAJE</th>
               <th style={{ padding: '14px' }}>FECHA VIAJE</th>
-              <th style={{ padding: '14px' }}>FECHA REGRESO</th>
+              <th style={{ padding: '14px' }}>FECHA REGRESO / SALIDA</th>
               <th style={{ padding: '14px' }}>TIPO</th>
               <th style={{ padding: '14px' }}>VIAJEROS</th>
               {activeView === 'purchases' && (
@@ -878,11 +1047,13 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     </div>
                   ))}
                 </td>
-                <td style={{ padding: '14px' }}>{(b.tripType ?? (b.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'IDA Y VUELTA' : 'SOLO IDA'}</td>
+                <td style={{ padding: '14px' }}>{getServiceType(b) === 'HOTEL'
+                  ? 'ESTADÍA'
+                  : (b.tripType ?? (b.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'IDA Y VUELTA' : 'SOLO IDA'}</td>
                 <td style={{ padding: '14px' }}>{formatDisplayDate(b.travelDate)}</td>
                 <td style={{ padding: '14px' }}>{b.returnDate ? formatDisplayDate(b.returnDate) : '—'}</td>
                 <td style={{ padding: '14px' }}>
-                  {b.isPackage ? 'PAQUETE' : 'TIQUETE'}
+                  {SERVICE_TYPE_LABELS[getServiceType(b)]}
                   {b.isPackage && b.packageType && (
                     <div style={{ marginTop: '4px', color: '#4b5563' }}>
                       {getPackageTypeLabel(b.packageType)}
@@ -927,7 +1098,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   )}
                   {activeView === 'purchases' && (
                     <button
-                      onClick={() => setSelectedPassenger(b)}
+                      onClick={() => void showClientProfile(b)}
                       style={{ padding: '6px 14px', backgroundColor: '#f3f4f6', color: '#2D60A8', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
                     >
                       Ver Perfil
@@ -961,9 +1132,24 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>👤 Perfil del Cliente</h3>
             <p style={{ marginTop: '15px' }}><strong>Nombre:</strong> {selectedPassenger.passenger}</p>
             <p><strong>{selectedPassenger.documentType || 'Número de identidad'}:</strong> {selectedPassenger.cedula || 'No registrado'}</p>
-            <p><strong>Tipo de viaje:</strong> {(selectedPassenger.tripType ?? (selectedPassenger.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'}</p>
-            <p><strong>Fecha de ida:</strong> {formatDisplayDate(selectedPassenger.travelDate)}</p>
-            {selectedPassenger.returnDate && <p><strong>Fecha de regreso:</strong> {formatDisplayDate(selectedPassenger.returnDate)}</p>}
+            <section style={{ margin: '16px 0', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+              <strong>Historial de viajes asociado a esta cédula</strong>
+              {isLoadingHistory ? (
+                <p>Consultando cotizaciones y compras...</p>
+              ) : clientHistory.length ? clientHistory.map((trip, index) => (
+                <div key={`${trip.recordType}-${trip.id}-${index}`} style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                  <strong>{trip.recordType === 'purchase' ? 'Compra registrada' : 'Cotización'}</strong>
+                  <div>{trip.packageName || SERVICE_TYPE_LABELS[getServiceType(trip)]} · {trip.route}</div>
+                  <div>Viaje: {formatDisplayDate(trip.travelDate)} · Registro: {formatDisplayDate(trip.quoteDate || trip.purchaseDate)}</div>
+                  {trip.recordType === 'purchase' && <div>Valor: {formatCurrency(trip.totalValue)}</div>}
+                </div>
+              )) : <p>No hay otros viajes registrados para esta cédula.</p>}
+            </section>
+            <p><strong>Tipo de viaje:</strong> {getServiceType(selectedPassenger) === 'HOTEL'
+              ? 'Estadía'
+              : (selectedPassenger.tripType ?? (selectedPassenger.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP' ? 'Ida y vuelta' : 'Solo ida'}</p>
+            <p><strong>{getServiceType(selectedPassenger) === 'HOTEL' ? 'Fecha de ingreso:' : 'Fecha de ida:'}</strong> {formatDisplayDate(selectedPassenger.travelDate)}</p>
+            {selectedPassenger.returnDate && <p><strong>{getServiceType(selectedPassenger) === 'HOTEL' ? 'Fecha de salida:' : 'Fecha de regreso:'}</strong> {formatDisplayDate(selectedPassenger.returnDate)}</p>}
             <p><strong>Viajeros:</strong> {selectedPassenger.adultCount ?? 'Sin dato'} adulto(s), {selectedPassenger.childCount ?? 'Sin dato'} niño(s)</p>
             {(selectedPassenger.childAges?.length ?? 0) > 0 && (
               <p><strong>Edades de los niños:</strong> {selectedPassenger.childAges?.map(age => `${age} años`).join(', ')}</p>
@@ -991,7 +1177,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               <p><strong>Fecha límite para completar el pago:</strong> {formatDisplayDate(selectedPassenger.paymentDueDate)}</p>
             )}
             <button 
-              onClick={() => setSelectedPassenger(null)}
+              onClick={() => {
+                setSelectedPassenger(null);
+                setClientHistory([]);
+              }}
               style={{ marginTop: '20px', width: '100%', padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
             >
               Cerrar
@@ -1039,7 +1228,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Número de identidad:</label>
-                  <input required type="text" inputMode={newBooking.documentType === 'Pasaporte' ? 'text' : 'numeric'} minLength={newBooking.documentType === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={newBooking.documentType === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={newBooking.documentType === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} value={newBooking.cedula} onChange={e => setNewBooking({...newBooking, cedula: normalizeDocumentNumber(e.target.value, newBooking.documentType)})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="text" inputMode={newBooking.documentType === 'Pasaporte' ? 'text' : 'numeric'} minLength={newBooking.documentType === 'Pasaporte' ? 6 : 5} maxLength={15} pattern={newBooking.documentType === 'Pasaporte' ? '[A-Za-z0-9]{6,15}' : '[0-9]{5,15}'} title={newBooking.documentType === 'Pasaporte' ? 'El pasaporte debe tener entre 6 y 15 letras o números.' : 'El documento debe tener entre 5 y 15 dígitos.'} value={newBooking.cedula} onBlur={() => void handleClientDocumentBlur()} onChange={e => setNewBooking({...newBooking, cedula: normalizeDocumentNumber(e.target.value, newBooking.documentType)})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label htmlFor="admin-phone-country-code" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Número indicativo:</label>
@@ -1154,18 +1343,26 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de servicio:</label>
                 <select
                   required
-                  value={newBooking.isPackage ? 'PAQUETE' : 'TIQUETE'}
-                  onChange={e => setNewBooking({
-                    ...newBooking,
-                    isPackage: e.target.value === 'PAQUETE',
-                    isTicket: e.target.value === 'TIQUETE',
-                    packageType: e.target.value === 'TIQUETE' ? '' : newBooking.packageType,
-                    packageName: e.target.value === 'TIQUETE' ? '' : newBooking.packageName
-                  })}
+                  value={newBooking.serviceType}
+                  onChange={e => {
+                    const serviceType = e.target.value as ServiceType;
+                    setNewBooking(current => ({
+                      ...current,
+                      serviceType,
+                      isTicket: serviceType === 'TIQUETE' || serviceType === 'TIQUETE_HOTEL',
+                      isPackage: serviceType === 'PAQUETES',
+                      packageType: serviceType === 'PAQUETES' ? current.packageType : '',
+                      packageName: serviceType === 'PAQUETES' ? current.packageName : '',
+                      tripType: serviceType === 'HOTEL' ? 'ROUND_TRIP' : current.tripType
+                    }));
+                    if (serviceType === 'HOTEL') setOrigin('');
+                  }}
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                 >
-                  <option value="TIQUETE">TIQUETE</option>
-                  <option value="PAQUETE">PAQUETE</option>
+                  <option value="TIQUETE">Tiquete</option>
+                  <option value="HOTEL">Hotel</option>
+                  <option value="TIQUETE_HOTEL">Tiquete y Hotel</option>
+                  <option value="PAQUETES">Paquetes</option>
                 </select>
               </div>
 
@@ -1203,27 +1400,29 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               )}
 
               {/* Origen */}
-              <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />
-              </div>
+              {newBooking.serviceType !== 'HOTEL' && (
+                <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />
+                </div>
+              )}
 
               {/* Destino */}
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
               </div>
 
-              {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: newBooking.serviceType === 'HOTEL' ? '1fr' : '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Código Reserva:</label>
                   <input required={completingQuote} type="text" maxLength={30} placeholder="Ej: 26940704" value={newBooking.bookingCode} onChange={e => setNewBooking({...newBooking, bookingCode: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
-                <div>
+                {newBooking.serviceType !== 'HOTEL' && <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Aerolínea:</label>
                   <input required={completingQuote} type="text" maxLength={80} placeholder="Ej: Avianca, JetSmart" value={newBooking.airline} onChange={e => setNewBooking({...newBooking, airline: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
-                </div>
+                </div>}
               </div>}
 
-              <div>
+              {newBooking.serviceType !== 'HOTEL' && <div>
                 <label htmlFor="admin-trip-type" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de viaje:</label>
                 <select
                   id="admin-trip-type"
@@ -1241,20 +1440,20 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   <option value="ROUND_TRIP">Ida y vuelta</option>
                   <option value="ONE_WAY">Solo ida</option>
                 </select>
-              </div>
+              </div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: newBooking.tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: (newBooking.serviceType === 'HOTEL' || newBooking.tripType === 'ROUND_TRIP') ? '1fr 1fr' : '1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Viaje:</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>{newBooking.serviceType === 'HOTEL' ? 'Fecha de ingreso:' : 'Fecha Viaje:'}</label>
                   <input required type="date" min={!editingBookingId ? getLocalDateString() : undefined} value={newBooking.travelDate} onChange={e => setNewBooking({...newBooking, travelDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
-                {newBooking.tripType === 'ROUND_TRIP' && <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha Regreso:</label>
+                {(newBooking.serviceType === 'HOTEL' || newBooking.tripType === 'ROUND_TRIP') && <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>{newBooking.serviceType === 'HOTEL' ? 'Fecha de salida:' : 'Fecha Regreso:'}</label>
                   <input required type="date" min={newBooking.travelDate || (!editingBookingId ? getLocalDateString() : undefined)} value={newBooking.returnDate} onChange={e => setNewBooking({...newBooking, returnDate: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>}
               </div>
 
-              {!editingQuote && <div>
+              {!editingQuote && newBooking.serviceType !== 'HOTEL' && <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Método de Pago:</label>
                 <select value={newBooking.paymentMethod} onChange={e => setNewBooking({...newBooking, paymentMethod: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
                   <option value="TRANSFERENCIA">TRANSFERENCIA</option>
@@ -1348,7 +1547,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 >
                   {isSaving ? 'Guardando...' : completingQuote ? 'Registrar compra y mover a Compras' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
                 </button>
-                <button type="button" onClick={() => { setShowAddModal(false); setEditingBookingId(null); setCompletingQuote(false); setEditingQuote(false); resetForm(); }} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button type="button" onClick={() => void closeEditingModal()} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   Cancelar
                 </button>
               </div>

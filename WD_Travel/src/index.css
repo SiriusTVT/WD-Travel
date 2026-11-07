@@ -1668,7 +1668,7 @@ select:focus {
   color: #fff !important;
 }
 
-/* Portada con destinos rotativos (cambia cada 5 minutos) */
+/* Portada con destinos y promociones rotativos. */
 .hero-destination-cover {
   position: absolute;
   z-index: 0;
@@ -1697,12 +1697,18 @@ select:focus {
   bottom: clamp(70px, 12vh, 120px);
   display: grid;
   gap: 4px;
+  max-width: min(440px, 42vw);
+  padding: 18px 22px;
   color: #fff;
-  text-align: right;
+  text-align: left;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  background: rgba(9, 30, 57, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
 }
 
-.hero-destination-label span {
+.hero-destination-category {
   color: var(--wd-lime);
   font-size: 0.76rem;
   font-weight: 800;
@@ -1710,11 +1716,52 @@ select:focus {
   text-transform: uppercase;
 }
 
+.hero-destination-place,
+.hero-destination-price {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .hero-destination-label strong {
   font-family: var(--wd-serif);
-  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  font-size: clamp(1.7rem, 3vw, 2.8rem);
   font-weight: 400;
-  line-height: 1;
+  line-height: 1.1;
+}
+
+.hero-image-credit,
+.package-image-credit {
+  width: fit-content;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.75);
+}
+
+.hero-image-credit:hover,
+.package-image-credit:hover {
+  color: #fff;
+}
+
+.package-image-credit {
+  position: absolute !important;
+  right: 12px;
+  bottom: 10px;
+  z-index: 2;
+  max-width: calc(100% - 24px);
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .hero-destination-label {
+    right: 18px;
+    bottom: 24px;
+    left: 18px;
+    max-width: none;
+    padding: 12px 14px;
+  }
 }
 
 

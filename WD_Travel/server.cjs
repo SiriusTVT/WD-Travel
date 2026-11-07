@@ -60,6 +60,7 @@ let salesCollection;
 let usersCollection;
 let sessionsCollection;
 let rateLimitsCollection;
+let clientLocksCollection;
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -205,6 +206,36 @@ function requireRoles(...allowedRoles) {
 
 const requireAdmin = requireRoles('admin', 'advisor');
 const requireAdministrator = requireRoles('admin');
+
+function getDocumentNumberHash(value) {
+  const normalized = String(value).replace(/[^a-z\d]/gi, '').toUpperCase();
+  return createHmac('sha256', TOTP_ENCRYPTION_KEY).update(normalized).digest('hex');
+}
+
+async function requireClientLock(request, response, next) {
+  const documentNumber = request.body?.cedula;
+  if (typeof documentNumber !== 'string' || !documentNumber.trim()) {
+    response.status(400).json({ error: 'Se requiere una cédula válida para guardar este registro.' });
+    return;
+  }
+
+  try {
+    const lock = await clientLocksCollection.findOne({
+      cedulaHash: getDocumentNumberHash(documentNumber),
+      ownerEmail: request.authUser.email,
+      expiresAt: { $gt: new Date() }
+    });
+    if (!lock) {
+      response.status(423).json({
+        error: 'La edición de este cliente no está bloqueada por tu sesión. Vuelve a abrir el registro e inténtalo nuevamente.'
+      });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
 
 function requireAccountCreationSession(request, response, next) {
   if (!CREATE_ACCOUNT_SECRET) {
@@ -565,10 +596,24 @@ async function sendQuoteNotification(quote) {
   const childAges = Array.isArray(quote.childAges)
     ? quote.childAges.filter(age => Number.isInteger(age)).join(', ')
     : '';
-  const tripType = quote.tripType === 'ROUND_TRIP' || quote.returnDate
-    ? 'Ida y vuelta'
-    : 'Solo ida';
-  const service = quote.isPackage ? 'Paquete' : 'Tiquete';
+  const serviceLabels = {
+    TIQUETE: 'Tiquete',
+    HOTEL: 'Hotel',
+    TIQUETE_HOTEL: 'Tiquete y Hotel',
+    PAQUETES: 'Paquetes'
+  };
+  const serviceType = Object.prototype.hasOwnProperty.call(serviceLabels, quote.serviceType)
+    ? quote.serviceType
+    : quote.isPackage
+      ? (quote.packageType || quote.packageName ? 'PAQUETES' : 'TIQUETE_HOTEL')
+      : 'TIQUETE';
+  const service = serviceLabels[serviceType];
+  const isHotelOnly = serviceType === 'HOTEL';
+  const tripType = isHotelOnly
+    ? 'Estadía'
+    : quote.tripType === 'ROUND_TRIP' || quote.returnDate
+      ? 'Ida y vuelta'
+      : 'Solo ida';
   const packageTypeLabels = {
     'paquetes-migratorios': 'Paquete migratorio',
     'paquetes-hotel-vuelos': 'Paquetes de hotel y vuelos',
@@ -585,9 +630,9 @@ async function sendQuoteNotification(quote) {
     { label: 'Tipo de documento', value: quote.documentType },
     { label: 'Ruta', value: quote.route },
     { label: 'Tipo de viaje', value: tripType },
-    { label: 'Fecha de ida', value: formatQuoteDate(quote.travelDate) },
+    { label: isHotelOnly ? 'Fecha de ingreso' : 'Fecha de ida', value: formatQuoteDate(quote.travelDate) },
     ...(quote.returnDate
-      ? [{ label: 'Fecha de regreso', value: formatQuoteDate(quote.returnDate) }]
+      ? [{ label: isHotelOnly ? 'Fecha de salida' : 'Fecha de regreso', value: formatQuoteDate(quote.returnDate) }]
       : []),
     { label: 'Adultos', value: String(Number(quote.adultCount) || 0) },
     { label: 'Niños', value: String(childCount) },
@@ -685,6 +730,14 @@ function protectSensitiveFields(value) {
   ));
 }
 
+function protectBookingFields(value) {
+  const protectedFields = protectSensitiveFields(value);
+  if (typeof value?.cedula === 'string' && value.cedula.trim()) {
+    protectedFields.cedulaHash = getDocumentNumberHash(value.cedula);
+  }
+  return protectedFields;
+}
+
 function revealSensitiveFields(value) {
   return mapSensitiveFields(value, cedula => (
     cedula.startsWith(ENCRYPTED_PREFIX)
@@ -699,7 +752,9 @@ async function migrateSensitiveFields(collection) {
   let migrated = 0;
   for (const doc of docs) {
     const { _id, ...fields } = doc;
+    const cedula = revealSensitiveFields({ cedula: fields.cedula }).cedula;
     const protectedFields = protectSensitiveFields(fields);
+    if (cedula) protectedFields.cedulaHash = getDocumentNumberHash(cedula);
     if (JSON.stringify(protectedFields) !== JSON.stringify(fields)) {
       await collection.updateOne({ _id }, { $set: protectedFields });
       migrated += 1;
@@ -720,6 +775,123 @@ function buildIdFilter(id) {
   return { $or: filters };
 }
 
+function requireClientUnlocked(getCollection) {
+  return async (request, response, next) => {
+    try {
+      const record = await getCollection().findOne(buildIdFilter(request.params.id), {
+        projection: { cedulaHash: 1 }
+      });
+      if (record?.cedulaHash) {
+        const lock = await clientLocksCollection.findOne({
+          cedulaHash: record.cedulaHash,
+          ownerEmail: { $ne: request.authUser.email },
+          expiresAt: { $gt: new Date() }
+        });
+        if (lock) {
+          response.status(423).json({
+            error: `No se puede eliminar el registro mientras ${lock.ownerEmail} lo está editando.`
+          });
+          return;
+        }
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+app.post('/api/client-locks', requireAdmin, async (request, response, next) => {
+  const { cedula, recordId } = request.body || {};
+  if (typeof cedula !== 'string' || !/^[a-z\d]{5,15}$/i.test(cedula)) {
+    response.status(400).json({ error: 'Ingresa una cédula válida para bloquear la edición.' });
+    return;
+  }
+
+  try {
+    const now = new Date();
+    const cedulaHash = getDocumentNumberHash(cedula);
+    const lock = await clientLocksCollection.findOneAndUpdate(
+      {
+        cedulaHash,
+        $or: [
+          { ownerEmail: request.authUser.email },
+          { expiresAt: { $lte: now } }
+        ]
+      },
+      {
+        $set: {
+          ownerEmail: request.authUser.email,
+          recordId: typeof recordId === 'string' ? recordId : '',
+          expiresAt: new Date(now.getTime() + 90_000)
+        }
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+    response.json({ locked: true, expiresAt: lock.expiresAt });
+  } catch (error) {
+    if (error.code === 11000) {
+      const currentLock = await clientLocksCollection.findOne({
+        cedulaHash: getDocumentNumberHash(cedula),
+        expiresAt: { $gt: new Date() }
+      });
+      response.status(409).json({
+        error: 'Otro asesor está editando este cliente.',
+        lockedBy: currentLock?.ownerEmail || 'otro asesor'
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+app.delete('/api/client-locks/:cedula', requireAdmin, async (request, response, next) => {
+  try {
+    await clientLocksCollection.deleteOne({
+      cedulaHash: getDocumentNumberHash(request.params.cedula),
+      ownerEmail: request.authUser.email
+    });
+    response.json({ released: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/client-history/:cedula', requireAdmin, async (request, response) => {
+  const { cedula } = request.params;
+  if (!/^[a-z\d]{5,15}$/i.test(cedula)) {
+    response.status(400).json({ error: 'La cédula consultada no es válida.' });
+    return;
+  }
+
+  try {
+    const cedulaHash = getDocumentNumberHash(cedula);
+    const [quoteDocs, saleDocs] = await Promise.all([
+      quotesCollection.find({ cedulaHash }).sort({ createdAt: -1 }).toArray(),
+      salesCollection.find({ cedulaHash }).sort({ createdAt: -1 }).toArray()
+    ]);
+    const toHistoryRecord = (doc, recordType) => {
+      const { _id, ...rest } = revealSensitiveFields(doc);
+      delete rest.cedulaHash;
+      return {
+        ...rest,
+        id: rest.id || _id.toString(),
+        recordType
+      };
+    };
+    response.json([
+      ...quoteDocs.map(doc => toHistoryRecord(doc, 'quote')),
+      ...saleDocs.map(doc => toHistoryRecord(doc, 'purchase'))
+    ].sort((first, second) =>
+      new Date(second.createdAt || second.quoteDate || second.purchaseDate || 0).getTime()
+      - new Date(first.createdAt || first.quoteDate || first.purchaseDate || 0).getTime()
+    ));
+  } catch (error) {
+    console.error('Error consultando el historial de viajes del cliente:', error);
+    response.status(500).json({ error: 'No fue posible consultar el historial del cliente.' });
+  }
+});
+
 // Consultar cotizaciones pendientes
 app.get('/api/quotes', requireAdmin, async (request, response) => {
   try {
@@ -730,6 +902,7 @@ app.get('/api/quotes', requireAdmin, async (request, response) => {
       .toArray();
     const quotes = docs.map(doc => {
       const { _id, ...rest } = revealSensitiveFields(doc);
+      delete rest.cedulaHash;
       return {
         ...rest,
         id: rest.id || _id.toString()
@@ -742,7 +915,7 @@ app.get('/api/quotes', requireAdmin, async (request, response) => {
   }
 });
 
-app.post('/api/quotes/manual', requireAdmin, async (request, response) => {
+app.post('/api/quotes/manual', requireAdmin, requireClientLock, async (request, response) => {
   const quote = request.body;
   if (
     !quote ||
@@ -761,8 +934,8 @@ app.post('/api/quotes/manual', requireAdmin, async (request, response) => {
 
   try {
     const { _id, ...fields } = quote;
-    const id = fields.id || Date.now().toString();
-    const savedQuote = protectSensitiveFields({
+    const id = fields.id || randomBytes(16).toString('hex');
+    const savedQuote = protectBookingFields({
       ...fields,
       id,
       source: 'whatsapp',
@@ -811,10 +984,10 @@ app.post('/api/quotes', async (request, response) => {
   }
 
   try {
-    const id = quote.id || Date.now().toString();
-    const { website, privacyAccepted, ...fields } = quote;
+    const id = quote.id || randomBytes(16).toString('hex');
+    const { website: _website, privacyAccepted: _privacyAccepted, ...fields } = quote;
     const createdAt = new Date();
-    const savedQuote = protectSensitiveFields({
+    const savedQuote = protectBookingFields({
       ...fields,
       id,
       privacyAcceptedAt: createdAt,
@@ -832,13 +1005,13 @@ app.post('/api/quotes', async (request, response) => {
 });
 
 // Actualizar cotización existente
-app.put('/api/quotes/:id', requireAdmin, async (request, response) => {
+app.put('/api/quotes/:id', requireAdmin, requireClientLock, async (request, response) => {
   try {
     const id = request.params.id;
     const { _id, ...updateData } = request.body;
     const result = await quotesCollection.updateOne(
       buildIdFilter(id),
-      { $set: { ...protectSensitiveFields(updateData), updatedAt: new Date() } }
+      { $set: { ...protectBookingFields(updateData), updatedAt: new Date() } }
     );
     if (result.matchedCount === 0) {
       console.warn(`No se encontró la cotización con ID ${id} para actualizar.`);
@@ -853,7 +1026,7 @@ app.put('/api/quotes/:id', requireAdmin, async (request, response) => {
 });
 
 // Eliminar cotización
-app.delete('/api/quotes/:id', requireAdministrator, async (request, response) => {
+app.delete('/api/quotes/:id', requireAdministrator, requireClientUnlocked(() => quotesCollection), async (request, response) => {
   try {
     const id = request.params.id;
     await quotesCollection.deleteMany(buildIdFilter(id));
@@ -873,6 +1046,7 @@ app.get(['/api/sales', '/api/purchases'], requireAdministrator, async (request, 
       .toArray();
     const sales = docs.map(doc => {
       const { _id, ...rest } = revealSensitiveFields(doc);
+      delete rest.cedulaHash;
       return {
         ...rest,
         id: rest.id || _id.toString()
@@ -886,7 +1060,7 @@ app.get(['/api/sales', '/api/purchases'], requireAdministrator, async (request, 
 });
 
 // Registrar compra / mover cotización al esquema de ventas_realizadas
-app.post(['/api/sales', '/api/purchases'], requireAdmin, async (request, response) => {
+app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, async (request, response) => {
   const { quoteId, ...saleData } = request.body;
 
   if (
@@ -902,7 +1076,27 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, async (request, respons
   try {
     const targetQuoteId = quoteId || saleData.id;
 
-    // 1. Si viene de una cotización existente, eliminarla del esquema quotes
+    // Preparar el registro para el esquema de ventas realizadas.
+    const id = saleData.id || (targetQuoteId ? String(targetQuoteId) : randomBytes(16).toString('hex'));
+    const existingSale = await salesCollection.findOne(buildIdFilter(id));
+    if (existingSale) {
+      if (targetQuoteId && String(targetQuoteId) === String(id)) {
+        await quotesCollection.deleteMany(buildIdFilter(targetQuoteId));
+        response.json({ saved: true, id, alreadyRegistered: true });
+        return;
+      }
+      response.status(409).json({ error: 'Ya existe una compra con este identificador. No se modificó el registro anterior.' });
+      return;
+    }
+
+    const newSale = protectBookingFields({
+      ...saleData,
+      id,
+      purchaseDate: saleData.purchaseDate || new Date().toISOString().split('T')[0],
+      createdAt: new Date()
+    });
+
+    await salesCollection.insertOne(newSale);
     if (targetQuoteId) {
       const deleteResult = await quotesCollection.deleteMany(buildIdFilter(targetQuoteId));
       if (deleteResult.deletedCount > 0) {
@@ -910,24 +1104,8 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, async (request, respons
       }
     }
 
-    // 2. Preparar el registro para el nuevo esquema de ventas_realizadas
-    const id = saleData.id || String(targetQuoteId) || Date.now().toString();
-    const newSale = protectSensitiveFields({
-      ...saleData,
-      id,
-      purchaseDate: saleData.purchaseDate || new Date().toISOString().split('T')[0],
-      createdAt: new Date()
-    });
-
-    // 3. Insertar o actualizar en ventas_realizadas
-    await salesCollection.updateOne(
-      buildIdFilter(id),
-      { $set: newSale },
-      { upsert: true }
-    );
-
     console.log(`Compra registrada en ventas_realizadas con ID: ${id}`);
-    response.status(201).json({ saved: true, id, sale: newSale });
+    response.status(201).json({ saved: true, id });
   } catch (error) {
     console.error('Error guardando la compra en ventas_realizadas:', error);
     response.status(500).json({ error: 'No fue posible registrar la compra.' });
@@ -935,13 +1113,13 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, async (request, respons
 });
 
 // Actualizar compra existente
-app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, response) => {
+app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, requireClientLock, async (request, response) => {
   try {
     const id = request.params.id;
     const { _id, ...updateData } = request.body;
     const result = await salesCollection.updateOne(
       buildIdFilter(id),
-      { $set: { ...protectSensitiveFields(updateData), updatedAt: new Date() } }
+      { $set: { ...protectBookingFields(updateData), updatedAt: new Date() } }
     );
     if (result.matchedCount === 0) {
       console.warn(`No se encontró la compra con ID ${id} para actualizar.`);
@@ -956,7 +1134,7 @@ app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, async (request, 
 });
 
 // Eliminar compra
-app.delete(['/api/sales/:id', '/api/purchases/:id'], requireAdministrator, async (request, response) => {
+app.delete(['/api/sales/:id', '/api/purchases/:id'], requireAdministrator, requireClientUnlocked(() => salesCollection), async (request, response) => {
   try {
     const id = request.params.id;
     await salesCollection.deleteMany(buildIdFilter(id));
@@ -980,12 +1158,17 @@ async function start() {
   usersCollection = database.collection('users');
   sessionsCollection = database.collection('sessions');
   rateLimitsCollection = database.collection('rate_limits');
+  clientLocksCollection = database.collection('client_locks');
   await database.command({ ping: 1 });
   await usersCollection.createIndex({ email: 1 }, { unique: true });
   await sessionsCollection.createIndex({ tokenHash: 1 }, { unique: true });
   await sessionsCollection.createIndex({ email: 1 });
   await sessionsCollection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await rateLimitsCollection.createIndex({ resetAt: 1 }, { expireAfterSeconds: 0 });
+  await quotesCollection.createIndex({ cedulaHash: 1 });
+  await salesCollection.createIndex({ cedulaHash: 1 });
+  await clientLocksCollection.createIndex({ cedulaHash: 1 }, { unique: true });
+  await clientLocksCollection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await migrateSensitiveFields(quotesCollection);
   await migrateSensitiveFields(salesCollection);
 

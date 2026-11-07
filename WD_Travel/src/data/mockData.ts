@@ -1,5 +1,14 @@
 import type { PackageType } from './packageTypes';
 
+export type ServiceType = 'TIQUETE' | 'HOTEL' | 'TIQUETE_HOTEL' | 'PAQUETES';
+
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  TIQUETE: 'Tiquete',
+  HOTEL: 'Hotel',
+  TIQUETE_HOTEL: 'Tiquete y Hotel',
+  PAQUETES: 'Paquetes'
+};
+
 export interface Passenger {
   firstName?: string;
   lastName?: string;
@@ -26,6 +35,7 @@ export interface Booking {
   adultCount?: number;
   childCount?: number;
   childAges?: number[];
+  serviceType?: ServiceType;
   isTicket: boolean;
   isPackage: boolean;
   packageType?: PackageType;

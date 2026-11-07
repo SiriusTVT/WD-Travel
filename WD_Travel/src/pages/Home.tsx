@@ -3,8 +3,8 @@ import { LocationSelector } from '../components/LocationSelector.tsx';
 import { socialLinks } from '../components/Navbar';
 import logo from '../assets/logo.png';
 import { CallingCodeSelector } from '../components/CallingCodeSelector.tsx';
-import type { Booking } from '../data/mockData';
-import { PACKAGE_TYPES, type PackageType } from '../data/packageTypes';
+import { SERVICE_TYPE_LABELS, type Booking, type ServiceType } from '../data/mockData';
+import { type PackageType } from '../data/packageTypes';
 import {
   getLocalDateString,
   clampIntegerInput,
@@ -28,7 +28,7 @@ declare global {
   }
 }
 
-type BookingType = 'TIQUETE' | 'PAQUETE';
+type BookingType = ServiceType;
 
 interface TravelPackage {
   destination: string;
@@ -41,7 +41,12 @@ interface TravelPackage {
   includes: string[];
   formDestination?: string;
   actionText?: string;
+  availableUntil?: string;
   image: string;
+  imageCredit?: {
+    label: string;
+    url: string;
+  };
 }
 
 interface PackageCategory {
@@ -51,7 +56,7 @@ interface PackageCategory {
   packages: TravelPackage[];
 }
 
-const packageCategories: PackageCategory[] = [
+const allPackageCategories: PackageCategory[] = [
   {
     id: 'paquetes-migratorios',
     title: 'Paquete migratorio',
@@ -73,50 +78,57 @@ const packageCategories: PackageCategory[] = [
           'Acompañamiento 24/7'
         ],
         formDestination: 'España - Madrid (MAD)',
-        image: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=900&q=85'
+        image: '/packages/madrid.jpg',
+        imageCredit: { label: 'Unsplash · licencia Unsplash', url: 'https://unsplash.com/license' }
       }
     ]
   },
   {
     id: 'paquetes-hotel-vuelos',
     title: 'Paquetes de hotel y vuelos',
-    description: 'Ofertas con hotel y vuelo. Tarifas por persona en acomodación doble; reserva antes del 1 de noviembre de 2026.',
+    description: 'Ofertas con hotel y vuelo. Tarifas por persona en acomodación doble; reserva antes del 8 de noviembre de 2026.',
     packages: [
       {
-        destination: 'Ciudad de México · saliendo de Bogotá',
+        destination: 'Puerto Plata · saliendo de Bogotá',
         badge: 'Hotel + vuelo',
-        title: 'Marriott Reforma',
-        price: '$818.649 COP',
+        title: 'Viva Heavens by Wyndham',
+        price: '$1.921.776 COP',
+        priceLabel: 'Desde',
+        details: 'Paquete a Puerto Plata',
+        description: 'Tarifa PPN en acomodación doble. Reserva antes del 8 de noviembre de 2026.',
+        includes: ['Hotel: Viva Heavens by Wyndham', 'Vuelo desde Bogotá'],
+        formDestination: 'República Dominicana - Puerto Plata (POP)',
+        availableUntil: '2026-11-08',
+        image: '/packages/puerto-plata.jpg',
+        imageCredit: { label: 'Scotia · CC BY 3.0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:A_shady_nook_on_Playa_Dorada_beach_-_panoramio.jpg' }
+      },
+      {
+        destination: 'Ciudad de México · saliendo de Cali',
+        badge: 'Hotel + vuelo',
+        title: 'Presidente InterContinental Mexico City by IHG',
+        price: '$880.963 COP',
         priceLabel: 'Desde',
         details: 'Paquete a Ciudad de México',
-        description: 'Tarifa PPN en acomodación doble. Reserva antes del 1 de noviembre de 2026.',
-        includes: ['Hotel: Marriott Reforma', 'Vuelo desde Bogotá'],
+        description: 'Tarifa PPN en acomodación doble. Reserva antes del 8 de noviembre de 2026.',
+        includes: ['Hotel: Presidente InterContinental Mexico City by IHG', 'Vuelo desde Cali'],
         formDestination: 'México - Ciudad de México (MEX)',
-        image: 'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?auto=format&fit=crop&w=900&q=85'
+        availableUntil: '2026-11-08',
+        image: '/packages/ciudad-de-mexico.jpg',
+        imageCredit: { label: 'Drkgk · CC0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Patio_Central_en_Palacio_Nacional_Mexico_2019.jpg' }
       },
       {
-        destination: 'Madrid · saliendo de Cali',
+        destination: 'Río de Janeiro · saliendo de Bogotá',
         badge: 'Hotel + vuelo',
-        title: 'Hotel Riu Plaza España',
-        price: '$1.584.177 COP',
+        title: 'Sheraton Grand Rio Hotel & Resort',
+        price: '$1.227.671 COP',
         priceLabel: 'Desde',
-        details: 'Paquete a Madrid',
-        description: 'Tarifa PPN en acomodación doble. Reserva antes del 1 de noviembre de 2026.',
-        includes: ['Hotel: Riu Plaza España', 'Vuelo desde Cali'],
-        formDestination: 'España - Madrid (MAD)',
-        image: 'https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=900&q=85'
-      },
-      {
-        destination: 'Panamá · saliendo de Cali',
-        badge: 'Hotel + vuelo',
-        title: 'Hotel Riu Plaza Panamá',
-        price: '$565.759 COP',
-        priceLabel: 'Desde',
-        details: 'Paquete a Panamá',
-        description: 'Tarifa PPN en acomodación doble. Reserva antes del 1 de noviembre de 2026.',
-        includes: ['Hotel: Riu Plaza Panamá', 'Vuelo desde Cali'],
-        formDestination: 'Panamá - Ciudad de Panamá (PTY)',
-        image: 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=900&q=85'
+        details: 'Paquete a Río de Janeiro',
+        description: 'Tarifa PPN en acomodación doble. Reserva antes del 8 de noviembre de 2026.',
+        includes: ['Hotel: Sheraton Grand Rio Hotel & Resort', 'Vuelo desde Bogotá'],
+        formDestination: 'Brasil - Río de Janeiro (GIG)',
+        availableUntil: '2026-11-08',
+        image: '/packages/rio-de-janeiro.jpg',
+        imageCredit: { label: 'Wilfredor · CC0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Copacabana,_Rio_de_Janeiro.jpg' }
       }
     ]
   },
@@ -142,7 +154,8 @@ const packageCategories: PackageCategory[] = [
         ],
         formDestination: 'Montenegro - Podgorica (TGD)',
         actionText: 'Consultar esta oferta',
-        image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=900&q=85'
+        image: '/packages/budva.jpg',
+        imageCredit: { label: 'Сергей Наруков · CC BY 3.0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Old_Town,_Budva,_Montenegro_-_panoramio_(37).jpg' }
       },
       {
         destination: 'Croacia',
@@ -159,7 +172,8 @@ const packageCategories: PackageCategory[] = [
         ],
         formDestination: 'Croacia - Dubrovnik (DBV)',
         actionText: 'Consultar esta oferta',
-        image: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=900&q=85'
+        image: '/packages/dubrovnik.jpg',
+        imageCredit: { label: 'Diego Delso · CC BY-SA 3.0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Casco_viejo_de_Dubrovnik,_Croacia,_2014-04-14,_DD_07.JPG' }
       },
       {
         destination: 'Croacia',
@@ -177,7 +191,8 @@ const packageCategories: PackageCategory[] = [
         ],
         formDestination: 'Croacia - Dubrovnik (DBV)',
         actionText: 'Consultar esta oferta',
-        image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=900&q=85'
+        image: '/packages/dubrovnik.jpg',
+        imageCredit: { label: 'Diego Delso · CC BY-SA 3.0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Casco_viejo_de_Dubrovnik,_Croacia,_2014-04-14,_DD_07.JPG' }
       },
       {
         destination: 'Montenegro · Podgorica',
@@ -193,7 +208,8 @@ const packageCategories: PackageCategory[] = [
         ],
         formDestination: 'Montenegro - Podgorica (TGD)',
         actionText: 'Consultar esta oferta',
-        image: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=900&q=85'
+        image: '/packages/podgorica.jpg',
+        imageCredit: { label: 'Aleksandar Jaredić · CC BY-SA 3.0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Dva_mosta_panorama_sm.jpg' }
       },
       {
         destination: 'Montenegro · Podgorica',
@@ -211,7 +227,8 @@ const packageCategories: PackageCategory[] = [
         ],
         formDestination: 'Montenegro - Podgorica (TGD)',
         actionText: 'Consultar esta oferta',
-        image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=85'
+        image: '/packages/podgorica.jpg',
+        imageCredit: { label: 'Aleksandar Jaredić · CC BY-SA 3.0 · redimensionada', url: 'https://commons.wikimedia.org/wiki/File:Dva_mosta_panorama_sm.jpg' }
       }
     ]
   },
@@ -254,14 +271,15 @@ const packageCategories: PackageCategory[] = [
 
 const HERO_ROTATION_MS = 2 * 60 * 1000;
 
-// Cada paquete de los planes tiene su portada, con el nombre de su categoría.
-const heroPackages = packageCategories.flatMap(category =>
-  category.packages.map(travelPackage => ({
-    category: category.title,
-    name: travelPackage.title,
-    image: travelPackage.image,
-  }))
-);
+const getAvailablePackageCategories = (today: string) =>
+  allPackageCategories
+    .map(category => ({
+      ...category,
+      packages: category.packages.filter(
+        travelPackage => !travelPackage.availableUntil || today < travelPackage.availableUntil
+      )
+    }))
+    .filter(category => category.packages.length > 0);
 
 const travelServices = [
   {
@@ -295,6 +313,20 @@ interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
+  const [today, setToday] = useState(getLocalDateString());
+  const packageCategories = getAvailablePackageCategories(today);
+  const heroPackages = packageCategories
+    .filter(category => category.id !== 'asistencias-viaje')
+    .flatMap(category =>
+    category.packages.map(travelPackage => ({
+      category: category.title,
+      name: travelPackage.title,
+      destination: travelPackage.destination,
+      image: travelPackage.image,
+      price: travelPackage.price,
+      imageCredit: travelPackage.imageCredit
+    }))
+  );
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -312,9 +344,9 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       setHeroDestinationIndex(index => (index + 1) % heroPackages.length);
     }, HERO_ROTATION_MS);
     return () => clearInterval(rotationId);
-  }, []);
+  }, [heroPackages.length]);
 
-  const heroDestination = heroPackages[heroDestinationIndex];
+  const heroDestination = heroPackages[heroDestinationIndex % heroPackages.length];
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -324,6 +356,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [returnDate, setReturnDate] = useState('');
   const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ROUND_TRIP');
   const [bookingType, setBookingType] = useState<BookingType>('TIQUETE');
+  const isHotelOnly = bookingType === 'HOTEL';
+  const needsReturnDate = isHotelOnly || tripType === 'ROUND_TRIP';
   const [packageType, setPackageType] = useState<PackageType | ''>('');
   const [packageName, setPackageName] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -334,6 +368,25 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [childCount, setChildCount] = useState('0');
   const childCountValue = Number(childCount) || 0;
   const [childAges, setChildAges] = useState<string[]>([]);
+
+  useEffect(() => {
+    const refreshAvailability = () => {
+      const currentDate = getLocalDateString();
+      setToday(currentDate);
+      if (!packageName) return;
+      const packageIsAvailable = getAvailablePackageCategories(currentDate).some(category =>
+        category.id === packageType && category.packages.some(travelPackage => travelPackage.title === packageName)
+      );
+      if (!packageIsAvailable) {
+        setPackageType('');
+        setPackageName('');
+        setDestination('');
+      }
+    };
+
+    const dateRefreshId = window.setInterval(refreshAvailability, 60_000);
+    return () => window.clearInterval(dateRefreshId);
+  }, [packageName, packageType]);
 
   const handleTravelerCountChange = (type: 'adults' | 'children', value: string) => {
     if (type === 'adults') {
@@ -372,24 +425,36 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   };
 
   const selectPackage = (category: PackageCategory, travelPackage: TravelPackage) => {
-    setBookingType('PAQUETE');
+    setBookingType('PAQUETES');
     setPackageType(category.id);
     setPackageName(travelPackage.title);
     setDestination(travelPackage.formDestination ?? '');
     scrollToForm();
   };
 
-  const handlePackageTypeChange = (nextType: PackageType | '') => {
-    if (packageName) setDestination('');
-    setPackageType(nextType);
-    setPackageName('');
-  };
+  const handlePackageSelectionChange = (selection: string) => {
+    if (selection === 'unspecified') {
+      setPackageType('');
+      setPackageName('');
+      setDestination('');
+      return;
+    }
 
-  const handlePackageNameChange = (nextName: string) => {
-    setPackageName(nextName);
+    const separatorIndex = selection.indexOf('::');
+    if (separatorIndex < 0) {
+      setPackageType('');
+      setPackageName('');
+      setDestination('');
+      return;
+    }
+
+    const nextType = selection.slice(0, separatorIndex) as PackageType;
+    const nextName = selection.slice(separatorIndex + 2);
     const selectedPackage = packageCategories
-      .find(category => category.id === packageType)
+      .find(category => category.id === nextType)
       ?.packages.find(travelPackage => travelPackage.title === nextName);
+    setPackageType(nextType);
+    setPackageName(nextName);
     setDestination(selectedPackage?.formDestination ?? '');
   };
 
@@ -409,6 +474,16 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (bookingType === 'PAQUETES' && packageName && !packageCategories.some(category =>
+      category.id === packageType && category.packages.some(travelPackage => travelPackage.title === packageName)
+    )) {
+      setPackageType('');
+      setPackageName('');
+      setDestination('');
+      window.alert('El paquete seleccionado ya no está disponible. Selecciona una opción vigente para continuar.');
+      return;
+    }
+
     const normalizedAdultCount = Number(adultCount);
     const normalizedChildCount = Number(childCount);
     if (
@@ -416,12 +491,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       !isValidPersonName(lastName) ||
       !isValidDocumentNumber(documentNumber, documentType) ||
       !isValidContactPhone(phone, phoneCountryCode) ||
-      !isValidLocation(origin) ||
       !isValidLocation(destination) ||
-      origin === destination ||
+      (!isHotelOnly && (!isValidLocation(origin) || origin === destination)) ||
       !isValidDate(travelDate) ||
       travelDate < getLocalDateString() ||
-      (tripType === 'ROUND_TRIP' && (
+      (needsReturnDate && (
         !isValidDate(returnDate) ||
         returnDate < travelDate
       ))
@@ -452,7 +526,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     };
 
     const booking: Booking = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       quoteDate: new Date().toISOString().split('T')[0],
       purchaseDate: '',
       firstName: titular.firstName,
@@ -461,18 +535,21 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       phone: `${phoneCountryCode} ${phone.trim()}`,
       cedula: titular.cedula,
       documentType: titular.documentType,
-      route: `${origin} ➔ ${destination}${tripType === 'ROUND_TRIP' ? ` ➔ ${origin}` : ''}`,
+      route: isHotelOnly
+        ? destination
+        : `${origin} ➔ ${destination}${tripType === 'ROUND_TRIP' ? ` ➔ ${origin}` : ''}`,
       bookingCode: 'PENDIENTE',
       travelDate,
-      returnDate: tripType === 'ROUND_TRIP' ? returnDate : '',
+      returnDate: needsReturnDate ? returnDate : '',
       tripType,
       adultCount: normalizedAdultCount,
       childCount: normalizedChildCount,
       childAges: childAges.slice(0, normalizedChildCount).map(Number),
-      isTicket: bookingType === 'TIQUETE',
-      isPackage: bookingType === 'PAQUETE',
-      packageType: bookingType === 'PAQUETE' ? packageType || undefined : undefined,
-      packageName: bookingType === 'PAQUETE' ? packageName || undefined : undefined,
+      serviceType: bookingType,
+      isTicket: bookingType === 'TIQUETE' || bookingType === 'TIQUETE_HOTEL',
+      isPackage: bookingType === 'PAQUETES',
+      packageType: bookingType === 'PAQUETES' ? packageType || undefined : undefined,
+      packageName: bookingType === 'PAQUETES' ? packageName || undefined : undefined,
       airline: 'Por definir',
       paymentMethod: 'PENDIENTE',
       totalValue: 0,
@@ -519,8 +596,15 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
         )}
         {heroDestination && (
           <div className="hero-destination-label" aria-live="polite">
-            <span>{heroDestination.category}</span>
+            <span className="hero-destination-category">{heroDestination.category}</span>
+            <span className="hero-destination-place">{heroDestination.destination}</span>
             <strong>{heroDestination.name}</strong>
+            {heroDestination.price && <span className="hero-destination-price">{heroDestination.price}</span>}
+            {heroDestination.imageCredit && (
+              <a className="hero-image-credit" href={heroDestination.imageCredit.url} target="_blank" rel="noreferrer">
+                Foto: {heroDestination.imageCredit.label}
+              </a>
+            )}
           </div>
         )}
         <div className="hero-content">
@@ -650,10 +734,26 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   <article className="package-card" key={travelPackage.title}>
                     <div
                       className="package-image"
-                      style={{ backgroundImage: `linear-gradient(180deg, rgba(13, 42, 82, 0.08), rgba(13, 42, 82, 0.85)), url('${travelPackage.image}')` }}
+                      style={{
+                        backgroundImage: `linear-gradient(180deg, rgba(13, 42, 82, 0.08), rgba(13, 42, 82, 0.72)), url('${travelPackage.image}')`,
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: 'cover'
+                      }}
                     >
                       <span className="package-badge">{travelPackage.badge}</span>
                       <div className="package-destination">{travelPackage.destination}</div>
+                      {travelPackage.imageCredit && (
+                        <a
+                          className="package-image-credit"
+                          href={travelPackage.imageCredit.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={event => event.stopPropagation()}
+                        >
+                          Foto: {travelPackage.imageCredit.label}
+                        </a>
+                      )}
                     </div>
                     <div className="package-content">
                       <h4>{travelPackage.title}</h4>
@@ -716,7 +816,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             <div style={{ padding: '30px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', borderRadius: '12px', textAlign: 'center' }}>
               <h3 style={{ margin: '0 0 10px 0', fontSize: '1.4rem' }}>¡Solicitud enviada con éxito!</h3>
               <p style={{ margin: 0 }}>
-                Cotización registrada para la ruta: <strong>{origin} ➔ {destination}</strong>. Nos pondremos en contacto lo más pronto posible.
+                Cotización de <strong>{SERVICE_TYPE_LABELS[bookingType]}</strong> registrada para: <strong>{isHotelOnly ? destination : `${origin} ➔ ${destination}`}</strong>. Nos pondremos en contacto lo más pronto posible.
               </p>
               {notificationSent === false && (
                 <p role="status" style={{ margin: '12px 0 0', color: '#92400e' }}>
@@ -778,17 +878,64 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 </div>
               </div>
 
-              {/* Selector de Origen */}
-              <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
-                <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de servicio:</label>
+                <select required value={bookingType} onChange={e => {
+                  const nextBookingType = e.target.value as BookingType;
+                  setBookingType(nextBookingType);
+                  if (nextBookingType !== 'PAQUETES') {
+                    setPackageType('');
+                    setPackageName('');
+                    setDestination('');
+                  }
+                  if (nextBookingType === 'HOTEL') {
+                    setOrigin('');
+                    setTripType('ROUND_TRIP');
+                  }
+                }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}>
+                  <option value="TIQUETE">Tiquete</option>
+                  <option value="HOTEL">Hotel</option>
+                  <option value="TIQUETE_HOTEL">Tiquete y Hotel</option>
+                  <option value="PAQUETES">Paquetes</option>
+                </select>
               </div>
+
+              {bookingType === 'PAQUETES' && (
+                <div>
+                  <label htmlFor="package-name" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Paquete de interés:</label>
+                  <select
+                    id="package-name"
+                    required
+                    value={packageType && packageName ? `${packageType}::${packageName}` : ''}
+                    onChange={e => handlePackageSelectionChange(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
+                  >
+                    <option value="">Selecciona un paquete</option>
+                    {packageCategories.map(category => (
+                      <optgroup key={category.id} label={category.title}>
+                        {category.packages.map(travelPackage => (
+                          <option key={`${category.id}-${travelPackage.title}`} value={`${category.id}::${travelPackage.title}`}>
+                            {travelPackage.destination} — {travelPackage.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!isHotelOnly && (
+                <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
+                  <LocationSelector labelPrefix="Origen" value={origin} onChange={setOrigin} />
+                </div>
+              )}
 
               {/* Selector de Destino */}
               <div style={{ padding: '15px', backgroundColor: 'var(--wd-sky)', borderRadius: '10px', border: '1px solid var(--wd-line)' }}>
                 <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
               </div>
 
-              <div>
+              {!isHotelOnly && <div>
                 <label htmlFor="trip-type" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de viaje:</label>
                 <select
                   id="trip-type"
@@ -803,11 +950,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   <option value="ROUND_TRIP">Ida y vuelta</option>
                   <option value="ONE_WAY">Solo ida</option>
                 </select>
-              </div>
+              </div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: tripType === 'ROUND_TRIP' ? '1fr 1fr' : '1fr', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: needsReturnDate ? '1fr 1fr' : '1fr', gap: '20px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Fecha de Ida:</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>{isHotelOnly ? 'Fecha de ingreso:' : 'Fecha de Ida:'}</label>
                   <input required type="date" min={getLocalDateString()} value={travelDate} onChange={e => {
                     const nextTravelDate = e.target.value;
                     setTravelDate(nextTravelDate);
@@ -815,8 +962,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                     if (returnDate && nextTravelDate && returnDate < nextTravelDate) setReturnDate(nextTravelDate);
                   }} style={{ width: '100%', padding: '10px', borderRadius: '8px' }} />
                 </div>
-                {tripType === 'ROUND_TRIP' && <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Fecha de Regreso:</label>
+                {needsReturnDate && <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>{isHotelOnly ? 'Fecha de salida:' : 'Fecha de Regreso:'}</label>
                   <input required type="date" min={travelDate || getLocalDateString()} value={returnDate} onChange={e => {
                     // No se permite una fecha de regreso anterior a la de ida, aunque se escriba a mano.
                     const nextReturnDate = e.target.value;
@@ -862,55 +1009,6 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                     ))}
                   </div>
                 </div>
-              )}
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de servicio:</label>
-                <select required value={bookingType} onChange={e => {
-                  const nextBookingType = e.target.value as BookingType;
-                  setBookingType(nextBookingType);
-                  if (nextBookingType === 'TIQUETE') {
-                    setPackageType('');
-                    setPackageName('');
-                  }
-                }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}>
-                  <option value="TIQUETE">TIQUETE</option>
-                  <option value="PAQUETE">PAQUETE</option>
-                </select>
-              </div>
-
-              {bookingType === 'PAQUETE' && (
-                <>
-                  <div>
-                    <label htmlFor="package-type" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Tipo de paquete:</label>
-                    <select
-                      id="package-type"
-                      required
-                      value={packageType}
-                      onChange={e => handlePackageTypeChange(e.target.value as PackageType | '')}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
-                    >
-                      <option value="">Selecciona el tipo de paquete</option>
-                      {PACKAGE_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
-                    </select>
-                  </div>
-                  {packageType && (
-                    <div>
-                      <label htmlFor="package-name" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: 'var(--wd-ink)' }}>Paquete de interés (opcional):</label>
-                      <select
-                        id="package-name"
-                        value={packageName}
-                        onChange={e => handlePackageNameChange(e.target.value)}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
-                      >
-                        <option value="">No tengo uno específico</option>
-                        {packageCategories.find(category => category.id === packageType)?.packages.map(travelPackage => (
-                          <option key={travelPackage.title} value={travelPackage.title}>{travelPackage.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </>
               )}
 
               <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: '1px', height: '1px', overflow: 'hidden' }}>
