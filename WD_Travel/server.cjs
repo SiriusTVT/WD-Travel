@@ -939,6 +939,9 @@ app.post('/api/quotes/manual', requireAdmin, requireClientLock, async (request, 
       ...fields,
       id,
       source: 'whatsapp',
+      quoteStatus: 'PENDING',
+      quoteDate: fields.quoteDate || new Date().toISOString().split('T')[0],
+      advisorEmail: request.authUser.email,
       createdAt: new Date()
     });
     await quotesCollection.insertOne(savedQuote);
@@ -990,6 +993,8 @@ app.post('/api/quotes', async (request, response) => {
     const savedQuote = protectBookingFields({
       ...fields,
       id,
+      quoteStatus: 'PENDING',
+      quoteDate: fields.quoteDate || createdAt.toISOString().split('T')[0],
       privacyAcceptedAt: createdAt,
       createdAt
     });
@@ -1022,6 +1027,43 @@ app.put('/api/quotes/:id', requireAdmin, requireClientLock, async (request, resp
   } catch (error) {
     console.error('Error actualizando la cotización en quotes:', error);
     response.status(500).json({ error: 'No fue posible actualizar la cotización.' });
+  }
+});
+
+app.patch('/api/quotes/:id/status', requireAdmin, requireClientLock, async (request, response) => {
+  const { quoteStatus } = request.body || {};
+  if (!['PENDING', 'SENT'].includes(quoteStatus)) {
+    response.status(400).json({ error: 'El estado de la cotización no es válido.' });
+    return;
+  }
+
+  try {
+    const update = {
+      quoteStatus,
+      updatedAt: new Date()
+    };
+    if (quoteStatus === 'SENT') {
+      update.sentAt = new Date();
+      update.advisorEmail = request.authUser.email;
+    }
+
+    const result = await quotesCollection.updateOne(
+      { $and: [buildIdFilter(request.params.id), { quoteStatus: { $ne: 'PURCHASED' } }] },
+      { $set: update }
+    );
+    if (result.matchedCount === 0) {
+      response.status(409).json({ error: 'La cotización ya está asociada a una compra y no puede cambiar de estado.' });
+      return;
+    }
+    response.json({
+      updated: true,
+      quoteStatus,
+      advisorEmail: update.advisorEmail,
+      sentAt: update.sentAt
+    });
+  } catch (error) {
+    console.error('Error actualizando el estado de la cotización:', error);
+    response.status(500).json({ error: 'No fue posible actualizar el estado de la cotización.' });
   }
 });
 
@@ -1074,14 +1116,22 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, asyn
   }
 
   try {
-    const targetQuoteId = quoteId || saleData.id;
+    const targetQuoteId = quoteId || saleData.originQuoteId || '';
+    const sourceQuote = targetQuoteId
+      ? await quotesCollection.findOne(buildIdFilter(targetQuoteId))
+      : null;
 
     // Preparar el registro para el esquema de ventas realizadas.
     const id = saleData.id || (targetQuoteId ? String(targetQuoteId) : randomBytes(16).toString('hex'));
     const existingSale = await salesCollection.findOne(buildIdFilter(id));
     if (existingSale) {
-      if (targetQuoteId && String(targetQuoteId) === String(id)) {
-        await quotesCollection.deleteMany(buildIdFilter(targetQuoteId));
+      if (targetQuoteId && (
+        String(targetQuoteId) === String(id) ||
+        String(existingSale.originQuoteId || '') === String(targetQuoteId)
+      )) {
+        await quotesCollection.updateOne(buildIdFilter(targetQuoteId), {
+          $set: { quoteStatus: 'PURCHASED', purchaseId: id, purchasedAt: new Date() }
+        });
         response.json({ saved: true, id, alreadyRegistered: true });
         return;
       }
@@ -1092,16 +1142,26 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, asyn
     const newSale = protectBookingFields({
       ...saleData,
       id,
+      ...(targetQuoteId ? { originQuoteId: targetQuoteId } : {}),
+      advisorEmail: saleData.advisorEmail || sourceQuote?.advisorEmail || request.authUser.email,
       purchaseDate: saleData.purchaseDate || new Date().toISOString().split('T')[0],
+      paymentHistory: Array.isArray(saleData.paymentHistory)
+        ? saleData.paymentHistory
+        : Number(saleData.paidAmount) > 0
+          ? [{
+            amount: Number(saleData.paidAmount),
+            date: saleData.purchaseDate || new Date().toISOString().split('T')[0],
+            method: saleData.paymentMethod || ''
+          }]
+          : [],
       createdAt: new Date()
     });
 
     await salesCollection.insertOne(newSale);
     if (targetQuoteId) {
-      const deleteResult = await quotesCollection.deleteMany(buildIdFilter(targetQuoteId));
-      if (deleteResult.deletedCount > 0) {
-        console.log(`Cotización ${targetQuoteId} removida de quotes al completarse la compra.`);
-      }
+      await quotesCollection.updateOne(buildIdFilter(targetQuoteId), {
+        $set: { quoteStatus: 'PURCHASED', purchaseId: id, purchasedAt: new Date() }
+      });
     }
 
     console.log(`Compra registrada en ventas_realizadas con ID: ${id}`);

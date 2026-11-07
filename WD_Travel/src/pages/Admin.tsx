@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { SERVICE_TYPE_LABELS, type Booking, type ServiceType } from '../data/mockData';
+import { SERVICE_TYPE_LABELS, type Booking, type PaymentRecord, type ServiceType } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
 import { CallingCodeSelector } from '../components/CallingCodeSelector';
 import { isValidCallingCode } from '../data/callingCodes';
-import { getPackageTypeLabel, PACKAGE_TYPES, type PackageType } from '../data/packageTypes';
+import { getPackageTypeLabel, type PackageType } from '../data/packageTypes';
+import { getAvailablePackageCategories } from '../data/packageCatalog';
 import { formatDisplayDate } from '../formatDate';
 import {
   clampIntegerInput,
@@ -69,6 +70,24 @@ const formatPhoneForDisplay = (phone: string) =>
     ? /^\+\d+/.test(phone.trim()) ? phone.trim() : `+57 ${phone.trim()}`
     : 'No registrado';
 const PAYMENT_METHODS = ['TRANSFERENCIA', 'EFECTIVO', 'TARJETA'];
+const getPaymentHistory = (booking: Booking): PaymentRecord[] => booking.paymentHistory?.length
+  ? booking.paymentHistory
+  : Number(booking.paidAmount) > 0
+    ? [{
+      amount: Number(booking.paidAmount),
+      date: '',
+      method: `${booking.paymentMethod || 'Método no registrado'} (acumulado anterior sin detalle)`
+    }]
+    : [];
+const getPaymentDueState = (dueDate: string, today: string) => {
+  if (!dueDate) return 'Sin fecha límite';
+  const daysUntilDue = Math.ceil(
+    (new Date(`${dueDate}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86_400_000
+  );
+  if (daysUntilDue < 0) return 'Vencido';
+  if (daysUntilDue <= 7) return 'Próximo';
+  return 'Pendiente';
+};
 
 const getBookingRoute = (booking: Pick<Booking, 'route' | 'tripType' | 'returnDate' | 'serviceType'>) => {
   const routeParts = booking.route.split(' ➔ ').map(stop => stop.trim()).filter(Boolean);
@@ -90,7 +109,7 @@ interface AdminProps {
 }
 
 export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => {
-  const [activeView, setActiveView] = useState<'quotes' | 'purchases' | 'sales'>('quotes');
+  const [activeView, setActiveView] = useState<'quotes' | 'sentQuotes' | 'purchases' | 'sales' | 'deposits'>('quotes');
   const [salesPeriod, setSalesPeriod] = useState<'all' | 'month' | 'year'>('all');
   const [selectedSalesMonth, setSelectedSalesMonth] = useState(() => getLocalDateString().slice(0, 7));
   const [selectedSalesYear, setSelectedSalesYear] = useState(() => getLocalDateString().slice(0, 4));
@@ -99,10 +118,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const [clientHistory, setClientHistory] = useState<ClientHistoryRecord[]>([]);
   const [expandedClientKey, setExpandedClientKey] = useState<string | null>(null);
   const [expandedClientHistory, setExpandedClientHistory] = useState<ClientHistoryRecord[]>([]);
+  const [expandedPaymentId, setExpandedPaymentId] = useState<string | null>(null);
   const [isLoadingExpandedHistory, setIsLoadingExpandedHistory] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [addingPayment, setAddingPayment] = useState(false);
   const [lockedCedula, setLockedCedula] = useState('');
   const [completingQuote, setCompletingQuote] = useState(false);
   const [editingQuote, setEditingQuote] = useState(false);
@@ -167,6 +188,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     await releaseClientLock();
     setShowAddModal(false);
     setEditingBookingId(null);
+    setAddingPayment(false);
+    setAddingPayment(false);
     setCompletingQuote(false);
     setEditingQuote(false);
     resetForm();
@@ -247,10 +270,52 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
   }, [setBookings]);
 
+  const handleQuoteStatusChange = async (booking: Booking, quoteStatus: 'PENDING' | 'SENT') => {
+    if (!await acquireClientLock(booking.cedula, booking.id)) return;
+
+    try {
+      const response = await fetch(`/api/quotes/${booking.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cedula: booking.cedula, quoteStatus })
+      });
+      const result: { error?: string; advisorEmail?: string; sentAt?: string } = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'No fue posible actualizar el estado de la cotización.');
+      }
+
+      const updatedQuote: Booking = {
+        ...booking,
+        quoteStatus,
+        ...(quoteStatus === 'SENT'
+          ? {
+            sentAt: result.sentAt || getLocalDateString(),
+            advisorEmail: result.advisorEmail || booking.advisorEmail
+          }
+          : {})
+      };
+      setBookings(currentBookings => currentBookings.map(current =>
+        current.id === booking.id ? updatedQuote : current
+      ));
+      setExpandedClientHistory(currentHistory => currentHistory.map(record =>
+        record.id === booking.id ? { ...record, ...updatedQuote } : record
+      ));
+      setClientHistory(currentHistory => currentHistory.map(record =>
+        record.id === booking.id ? { ...record, ...updatedQuote } : record
+      ));
+      void fetchQuotes();
+    } catch (error) {
+      console.error('Error actualizando el estado de la cotización:', error);
+      window.alert(error instanceof Error ? error.message : 'No fue posible actualizar el estado de la cotización.');
+    } finally {
+      await releaseClientLock(booking.cedula);
+    }
+  };
+
   useEffect(() => {
     if (activeView === 'purchases') {
       void fetchPurchases();
-    } else if (activeView === 'quotes') {
+    } else if (activeView === 'quotes' || activeView === 'sentQuotes') {
       void fetchQuotes();
     }
   }, [activeView, fetchPurchases, fetchQuotes, role]);
@@ -260,9 +325,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     const refreshActiveView = () => {
       if (document.visibilityState !== 'visible') return;
 
-      if (activeView === 'purchases') {
+      if (activeView === 'purchases' || activeView === 'deposits' || activeView === 'sales') {
         void fetchPurchases();
-      } else if (activeView === 'quotes') {
+      } else if (activeView === 'quotes' || activeView === 'sentQuotes') {
         void fetchQuotes();
       }
       if (selectedPassengerCedula) {
@@ -305,7 +370,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   }, [showAddModal, lockedCedula, editingBookingId]);
 
   const [newBooking, setNewBooking] = useState({
-    quoteDate: new Date().toISOString().split('T')[0],
+    quoteDate: getLocalDateString(),
     purchaseDate: '',
     firstName: '',
     lastName: '',
@@ -337,7 +402,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setOrigin('');
     setDestination('');
     setNewBooking({
-      quoteDate: new Date().toISOString().split('T')[0],
+      quoteDate: getLocalDateString(),
       purchaseDate: '',
       firstName: '',
       lastName: '',
@@ -369,6 +434,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const handleEditClick = async (booking: Booking) => {
     if (!await acquireClientLock(booking.cedula, booking.id)) return false;
 
+    setAddingPayment(false);
     setCompletingQuote(false);
     setEditingQuote(false);
     const routeParts = getBookingRoute(booking);
@@ -481,6 +547,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setCompletingQuote(true);
   };
 
+  const handleRegisterPaymentClick = async (booking: Booking) => {
+    if (!await handleEditClick(booking)) return;
+    setAddingPayment(true);
+    setNewBooking(current => ({
+      ...current,
+      paymentStatus: 'ABONADO',
+      paidAmount: 0
+    }));
+  };
+
   const normalizeTravelerCounts = () => {
     setNewBooking(current => {
       const adultCount = current.adultCount || 1;
@@ -541,8 +617,25 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       return;
     }
 
+    if (
+      !editingBookingId &&
+      newBooking.serviceType === 'PAQUETES' &&
+      !adminPackageCategories.some(category =>
+        category.id === newBooking.packageType &&
+        category.packages.some(travelPackage => travelPackage.title === newBooking.packageName)
+      )
+    ) {
+      window.alert('Selecciona un paquete que esté disponible actualmente en la página principal.');
+      return;
+    }
+
     const totalValue = Number(newBooking.totalValue);
-    const paidAmount = Number(newBooking.paidAmount);
+    const bookingForEdit = bookings.find(booking => booking.id === editingBookingId);
+    const enteredPaidAmount = Number(newBooking.paidAmount);
+    const previousRecordedAmount = Number(bookingForEdit?.paidAmount) || 0;
+    const paidAmount = addingPayment
+      ? previousRecordedAmount + enteredPaidAmount
+      : enteredPaidAmount;
     if (!editingQuote && (
       !Number.isFinite(totalValue) ||
       totalValue < 0 ||
@@ -552,11 +645,22 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paidAmount > totalValue ||
       (newBooking.paymentStatus === 'ABONADO' && (
         paidAmount <= 0 ||
-        paidAmount >= totalValue ||
-        !isValidDate(newBooking.paymentDueDate)
+        paidAmount > totalValue ||
+        (!addingPayment && paidAmount >= totalValue) ||
+        (paidAmount < totalValue && !isValidDate(newBooking.paymentDueDate))
       ))
     )) {
       window.alert('El valor total debe estar entre $0 y $1.000.000.000. El abono debe ser mayor que cero y menor que el total.');
+      return;
+    }
+
+    if (
+      !editingQuote &&
+      !addingPayment &&
+      bookingForEdit?.purchaseDate &&
+      paidAmount < (Number(bookingForEdit.paidAmount) || 0)
+    ) {
+      window.alert('El valor abonado no puede ser menor al total de pagos ya registrados. Registra el nuevo abono acumulado.');
       return;
     }
 
@@ -585,7 +689,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     const firstName = newBooking.firstName.trim();
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
-    const existingBooking = bookings.find(booking => booking.id === editingBookingId);
+    const existingBooking = bookingForEdit;
     const primaryPassenger = {
       firstName,
       lastName,
@@ -627,6 +731,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         paidAmount: 0,
         ...existingBooking,
         quoteDate: existingBooking?.quoteDate || newBooking.quoteDate,
+        quoteStatus: existingBooking?.quoteStatus === 'SENT' ? 'PENDING' : existingBooking?.quoteStatus || 'PENDING',
         ...quoteData,
         purchaseDate: existingBooking?.purchaseDate || '',
         id: editingBookingId
@@ -659,6 +764,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
 
       setShowAddModal(false);
       setEditingBookingId(null);
+      setAddingPayment(false);
       setEditingQuote(false);
       await releaseClientLock(newBooking.cedula);
       resetForm();
@@ -668,8 +774,25 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
 
     const hasPaymentAgreement = newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO';
     const purchaseDate = completingQuote || hasPaymentAgreement
-      ? existingBooking?.purchaseDate || newBooking.purchaseDate || new Date().toISOString().split('T')[0]
+      ? existingBooking?.purchaseDate || newBooking.purchaseDate || getLocalDateString()
       : existingBooking?.purchaseDate || '';
+    const finalPaidAmount = newBooking.paymentStatus === 'PAGADO'
+      ? totalValue
+      : Math.min(paidAmount, totalValue);
+    const finalPaymentStatus = finalPaidAmount <= 0
+      ? 'PENDIENTE'
+      : finalPaidAmount >= totalValue
+        ? 'PAGADO'
+        : 'ABONADO';
+    const previousPaidAmount = Number(existingBooking?.paidAmount) || 0;
+    const paymentHistory = existingBooking ? getPaymentHistory(existingBooking) : [];
+    const nextPaymentHistory = finalPaidAmount > previousPaidAmount
+      ? [...paymentHistory, {
+        amount: finalPaidAmount - previousPaidAmount,
+        date: getLocalDateString(),
+        method: newBooking.paymentMethod
+      }]
+      : paymentHistory;
     const bookingData = {
       ...newBooking,
       paymentMethod: completingQuote && !PAYMENT_METHODS.includes(newBooking.paymentMethod)
@@ -678,18 +801,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       purchaseDate,
       ...quoteData,
       totalValue,
-      paymentStatus: newBooking.paymentStatus,
-      paidAmount: newBooking.paymentStatus === 'PAGADO' && !completingQuote
-        ? totalValue
-        : Math.min(Number(newBooking.paidAmount) || 0, totalValue),
-      paymentDueDate: newBooking.paymentStatus === 'ABONADO' ? newBooking.paymentDueDate : ''
+      paymentStatus: finalPaymentStatus,
+      paidAmount: finalPaidAmount,
+      paymentDueDate: finalPaymentStatus === 'ABONADO' ? newBooking.paymentDueDate : '',
+      advisorEmail: existingBooking?.advisorEmail,
+      paymentHistory: nextPaymentHistory
     };
 
-    const finalId = editingBookingId || crypto.randomUUID();
+    const finalId = completingQuote ? crypto.randomUUID() : editingBookingId || crypto.randomUUID();
     const finalBooking: Booking = {
       ...bookingData,
       id: finalId,
-      purchaseDate
+      purchaseDate,
+      ...(completingQuote && editingBookingId ? { originQuoteId: editingBookingId } : {})
     };
 
     if (completingQuote) {
@@ -799,11 +923,22 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     (booking.phone || '').toLowerCase().includes(searchTerm) ||
     (booking.cedula || '').toLowerCase().includes(searchTerm) ||
     normalizeClientIdentifier(booking.cedula || '').includes(normalizeClientIdentifier(searchTerm));
-  const pendingQuoteGroups = groupBookingsByClient(bookings.filter(booking => !booking.purchaseDate))
+  const pendingQuoteGroups = groupBookingsByClient(bookings.filter(booking =>
+    !booking.purchaseDate && booking.quoteStatus !== 'SENT' && booking.quoteStatus !== 'PURCHASED'
+  ))
+    .filter(group => group.bookings.some(matchesSearch));
+  const sentQuoteGroups = groupBookingsByClient(bookings.filter(booking =>
+    !booking.purchaseDate && booking.quoteStatus === 'SENT'
+  ))
     .filter(group => group.bookings.some(matchesSearch));
   const purchaseGroups = groupBookingsByClient(bookings.filter(booking => Boolean(booking.purchaseDate)))
     .filter(group => group.bookings.some(matchesSearch));
   const allPurchases = bookings.filter(booking => Boolean(booking.purchaseDate));
+  const depositPurchases = allPurchases.filter(booking => {
+    const total = Number(booking.totalValue) || 0;
+    const paid = Number(booking.paidAmount) || 0;
+    return paid > 0 && paid < total;
+  }).filter(matchesSearch);
   const filteredSales = allPurchases.filter(booking => {
     if (salesPeriod === 'all') return true;
     if (salesPeriod === 'month') return Boolean(selectedSalesMonth) && booking.purchaseDate.startsWith(selectedSalesMonth);
@@ -821,7 +956,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     (total, booking) => total + Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)),
     0
   );
-  const filteredClientGroups = activeView === 'quotes' ? pendingQuoteGroups : purchaseGroups;
+  const filteredClientGroups = activeView === 'quotes'
+    ? pendingQuoteGroups
+    : activeView === 'sentQuotes' ? sentQuoteGroups : purchaseGroups;
+  const adminPackageCategories = getAvailablePackageCategories(getLocalDateString());
+  const selectedAdminPackages = adminPackageCategories.find(category => category.id === newBooking.packageType)?.packages ?? [];
+  const editedPurchaseAmount = Number(bookings.find(booking => booking.id === editingBookingId)?.paidAmount) || 0;
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
   const formatAmountInput = (amount: number | '') => amount === '' ? '' : amount.toLocaleString('es-CO');
@@ -844,6 +984,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         <button
           onClick={() => {
             setEditingBookingId(null);
+            setAddingPayment(false);
             setLockedCedula('');
             setEditingQuote(false);
             setCompletingQuote(false);
@@ -877,7 +1018,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         )}
       </div>}
 
-      <div role="tablist" aria-label="Secciones de administración" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #d1d5db' }}>
+      <div role="tablist" aria-label="Secciones de administración" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #d1d5db' }}>
         <button
           type="button"
           role="tab"
@@ -889,6 +1030,18 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'quotes' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'quotes' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
         >
           Cotizaciones pendientes ({pendingQuoteGroups.length})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'sentQuotes'}
+          onClick={() => {
+            setActiveView('sentQuotes');
+            void fetchQuotes();
+          }}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'sentQuotes' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'sentQuotes' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Cotizaciones enviadas ({sentQuoteGroups.length})
         </button>
         {role === 'admin' && <button
           type="button"
@@ -913,7 +1066,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           }}
           style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'sales' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'sales' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
         >
-          Resumen de ventas
+          Registro de ventas
+        </button>}
+        {role === 'admin' && <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'deposits'}
+          onClick={() => {
+            setActiveView('deposits');
+            void fetchPurchases();
+          }}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'deposits' ? '3px solid #E3B31D' : '3px solid transparent', backgroundColor: 'transparent', color: activeView === 'deposits' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Clientes abonados ({depositPurchases.length})
         </button>}
       </div>
 
@@ -1024,6 +1189,90 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
             </table>
           </div>
         </section>
+      ) : activeView === 'deposits' ? (
+        <section aria-label="Clientes abonados con saldo pendiente">
+          <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2D60A8', color: '#fff' }}>
+                  <th style={{ padding: '14px' }}>CLIENTE</th>
+                  <th style={{ padding: '14px' }}>TELÉFONO</th>
+                  <th style={{ padding: '14px' }}>VALOR TOTAL</th>
+                  <th style={{ padding: '14px' }}>VALOR ABONADO</th>
+                  <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
+                  <th style={{ padding: '14px' }}>FECHA LÍMITE DE PAGO</th>
+                  <th style={{ padding: '14px' }}>ACCIONES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {depositPurchases.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
+                      {isLoadingPurchases ? 'Cargando compras registradas...' : 'No hay compras abonadas con saldo pendiente.'}
+                    </td>
+                  </tr>
+                ) : depositPurchases.map(booking => {
+                  const balance = Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0));
+                  const dueState = getPaymentDueState(booking.paymentDueDate || '', getLocalDateString());
+                  const dueColor = dueState === 'Vencido' ? '#b91c1c' : dueState === 'Próximo' ? '#b45309' : '#166534';
+                  const paymentHistory = getPaymentHistory(booking);
+                  const historyExpanded = expandedPaymentId === booking.id;
+                  return (
+                    <React.Fragment key={booking.id}>
+                      <tr style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: dueState === 'Vencido' ? '#fef2f2' : '#fff' }}>
+                        <td style={{ padding: '14px', fontWeight: 'bold' }}>
+                          {booking.passenger}
+                          <div style={{ fontSize: '0.8rem', fontWeight: 'normal', color: '#6b7280' }}>Cédula: {booking.cedula || 'No registrada'}</div>
+                        </td>
+                        <td style={{ padding: '14px' }}>{formatPhoneForDisplay(booking.phone)}</td>
+                        <td style={{ padding: '14px' }}>{formatCurrency(Number(booking.totalValue) || 0)}</td>
+                        <td style={{ padding: '14px', color: '#166534', fontWeight: 'bold' }}>{formatCurrency(Number(booking.paidAmount) || 0)}</td>
+                        <td style={{ padding: '14px', color: '#b45309', fontWeight: 'bold' }}>{formatCurrency(balance)}</td>
+                        <td style={{ padding: '14px', color: dueColor, fontWeight: 'bold' }}>
+                          {booking.paymentDueDate ? formatDisplayDate(booking.paymentDueDate) : 'Sin fecha'}
+                          <div style={{ fontSize: '0.8rem' }}>{dueState}</div>
+                        </td>
+                        <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => void handleRegisterPaymentClick(booking)}
+                            style={{ margin: '3px', padding: '7px 10px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Registrar abono
+                          </button>
+                          <button
+                            type="button"
+                            aria-expanded={historyExpanded}
+                            onClick={() => setExpandedPaymentId(historyExpanded ? null : booking.id)}
+                            style={{ margin: '3px', padding: '7px 10px', backgroundColor: '#e2e8f0', color: '#1f2937', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                          >
+                            {historyExpanded ? 'Ocultar pagos' : `Historial (${paymentHistory.length})`}
+                          </button>
+                        </td>
+                      </tr>
+                      {historyExpanded && (
+                        <tr>
+                          <td colSpan={7} style={{ padding: '14px 22px', backgroundColor: '#f8fafc' }}>
+                            <strong>Historial de pagos de {booking.passenger}</strong>
+                            {paymentHistory.length ? (
+                              <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+                                {paymentHistory.map((payment, index) => (
+                                  <li key={`${booking.id}-payment-${index}`}>
+                                    {payment.date ? formatDisplayDate(payment.date) : 'Fecha no registrada'} · {formatCurrency(payment.amount)} · {payment.method || 'Método no registrado'}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : <p style={{ marginBottom: 0 }}>No hay pagos individuales registrados.</p>}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
           <thead>
@@ -1041,6 +1290,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
                   {activeView === 'quotes'
                     ? 'No hay cotizaciones pendientes.'
+                    : activeView === 'sentQuotes'
+                      ? 'No hay cotizaciones enviadas pendientes de compra.'
                     : isLoadingPurchases
                       ? 'Cargando compras registradas desde la base de datos...'
                       : 'Todavía no hay compras registradas.'}
@@ -1061,7 +1312,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     <td style={{ padding: '14px' }}>{client.cedula || 'No registrada'}</td>
                     <td style={{ padding: '14px' }}>{formatPhoneForDisplay(client.phone)}</td>
                     <td style={{ padding: '14px' }}>
-                      {group.bookings.length} registro(s) de {activeView === 'quotes' ? 'cotización' : 'compra'}
+                      {group.bookings.length} registro(s) de {activeView === 'purchases' ? 'compra' : 'cotización'}
                     </td>
                     <td style={{ padding: '14px' }}>
                       <button
@@ -1094,13 +1345,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                                 <article key={`${trip.recordType}-${trip.id}`} style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #dbe3ee', borderRadius: '10px' }}>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
                                     <strong style={{ color: '#1f3f70' }}>
-                                      Viaje {index + 1} · {isQuote ? 'Cotización' : 'Compra'}
+                                      Viaje {index + 1} · {isQuote
+                                        ? trip.quoteStatus === 'PURCHASED' ? 'Cotización original (compra realizada)' : 'Cotización'
+                                        : 'Compra'}
                                     </strong>
                                     <span style={{ color: '#4b5563' }}>
-                                      Registrado: {formatDisplayDate(isQuote ? (trip.quoteDate || trip.purchaseDate) : trip.purchaseDate)}
+                                      {isQuote && trip.quoteStatus === 'SENT'
+                                        ? `Enviada: ${formatDisplayDate(trip.sentAt || trip.quoteDate || trip.purchaseDate)}`
+                                        : `Registrado: ${formatDisplayDate(isQuote ? (trip.quoteDate || trip.purchaseDate) : trip.purchaseDate)}`}
                                     </span>
                                   </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '8px 18px', color: '#374151' }}>
+                                    {isQuote && <div><strong>Asesor responsable:</strong> {trip.advisorEmail || 'Pendiente de asignación'}</div>}
+                                    {isQuote && <div><strong>Estado de cotización:</strong> {trip.quoteStatus === 'PURCHASED' ? 'Compra registrada' : trip.quoteStatus === 'SENT' ? 'Enviada' : 'Pendiente'}</div>}
                                     <div><strong>Destino / ruta:</strong> {tripRoute}</div>
                                     <div><strong>Servicio:</strong> {SERVICE_TYPE_LABELS[serviceType]}
                                       {trip.packageType ? ` · ${getPackageTypeLabel(trip.packageType)}` : ''}
@@ -1124,10 +1381,20 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                                       <div><strong>Valor / abonado:</strong> {formatCurrency(Number(trip.totalValue) || 0)} / {formatCurrency(Number(trip.paidAmount) || 0)}</div>
                                       <div><strong>Método de pago:</strong> {trip.paymentMethod || 'Sin dato'}</div>
                                       {trip.paymentDueDate && <div><strong>Fecha límite de pago:</strong> {formatDisplayDate(trip.paymentDueDate)}</div>}
+                                      {getPaymentHistory(trip).length > 0 && (
+                                        <div style={{ gridColumn: '1 / -1' }}>
+                                          <strong>Historial de pagos:</strong>
+                                          {getPaymentHistory(trip).map((payment, paymentIndex) => (
+                                            <div key={`${trip.id}-history-${paymentIndex}`}>
+                                              {payment.date ? formatDisplayDate(payment.date) : 'Fecha no registrada'} · {formatCurrency(payment.amount)} · {payment.method || 'Método no registrado'}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </>}
                                   </div>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px' }}>
-                                    {isQuote && (
+                                    {isQuote && trip.quoteStatus !== 'PURCHASED' && (
                                       <button
                                         type="button"
                                         onClick={() => void handleCompletePurchaseClick(trip)}
@@ -1136,9 +1403,30 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                                         Completar compra
                                       </button>
                                     )}
+                                    {!isQuote && (Number(trip.paidAmount) || 0) < (Number(trip.totalValue) || 0) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleRegisterPaymentClick(trip)}
+                                        style={{ padding: '6px 12px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                      >
+                                        Registrar abono
+                                      </button>
+                                    )}
+                                    {isQuote && trip.quoteStatus !== 'PURCHASED' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleQuoteStatusChange(trip, trip.quoteStatus === 'SENT' ? 'PENDING' : 'SENT')}
+                                        style={{ padding: '6px 12px', backgroundColor: trip.quoteStatus === 'SENT' ? '#e2e8f0' : '#2D60A8', color: trip.quoteStatus === 'SENT' ? '#1f2937' : '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                      >
+                                        {trip.quoteStatus === 'SENT' ? 'Devolver a pendientes' : 'Marcar cotización como enviada'}
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
-                                      onClick={() => isQuote ? void handleEditQuoteClick(trip) : void handleEditClick(trip)}
+                                      onClick={() => isQuote
+                                        ? trip.quoteStatus === 'PURCHASED' ? undefined : void handleEditQuoteClick(trip)
+                                        : void handleEditClick(trip)}
+                                      disabled={isQuote && trip.quoteStatus === 'PURCHASED'}
                                       style={{ padding: '6px 12px', backgroundColor: '#E3B31D', color: '#2D60A8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
                                     >
                                       Editar viaje
@@ -1235,7 +1523,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       {/* Modal: Registrar o editar venta manual */}
       {showAddModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '16px', maxWidth: '720px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: '#fff', padding: 'clamp(16px, 4vw, 30px)', borderRadius: '16px', maxWidth: '900px', width: 'calc(100% - 24px)', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ color: '#2D60A8', marginTop: 0, borderBottom: '2px solid #E3B31D', paddingBottom: '10px' }}>
               {completingQuote ? 'Completar cotización y registrar compra' : editingQuote ? 'Editar datos de la cotización' : editingBookingId ? '✏️ Editar Cliente / Venta' : '➕ Registrar Cliente / Venta Manual'}
             </h3>
@@ -1246,7 +1534,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
             )}
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombres:</label>
                   <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
@@ -1425,19 +1713,37 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                       style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                     >
                       <option value="">Selecciona el tipo de paquete</option>
-                      {PACKAGE_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+                      {newBooking.packageType && !adminPackageCategories.some(category => category.id === newBooking.packageType) && (
+                        <option value={newBooking.packageType}>
+                          {getPackageTypeLabel(newBooking.packageType) || newBooking.packageType} (registro histórico)
+                        </option>
+                      )}
+                      {adminPackageCategories.map(category => <option key={category.id} value={category.id}>{category.title}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="admin-package-name" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Paquete de interés (opcional):</label>
-                    <input
+                    <label htmlFor="admin-package-name" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Paquete disponible:</label>
+                    <select
                       id="admin-package-name"
-                      type="text"
-                      maxLength={120}
+                      required
                       value={newBooking.packageName}
-                      onChange={e => setNewBooking({ ...newBooking, packageName: e.target.value })}
+                      onChange={e => {
+                        const selectedPackage = selectedAdminPackages.find(travelPackage => travelPackage.title === e.target.value);
+                        setNewBooking(current => ({ ...current, packageName: e.target.value }));
+                        if (selectedPackage?.formDestination) setDestination(selectedPackage.formDestination);
+                      }}
                       style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                    />
+                    >
+                      <option value="">Selecciona un paquete vigente</option>
+                      {newBooking.packageName && !selectedAdminPackages.some(travelPackage => travelPackage.title === newBooking.packageName) && (
+                        <option value={newBooking.packageName}>{newBooking.packageName} (paquete histórico)</option>
+                      )}
+                      {selectedAdminPackages.map(travelPackage => (
+                        <option key={travelPackage.title} value={travelPackage.title}>
+                          {travelPackage.title} — {travelPackage.destination}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </>
               )}
@@ -1519,7 +1825,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Estado del Pago:</label>
-                  <select required value={newBooking.paymentStatus} onChange={e => {
+                  <select required disabled={addingPayment} value={newBooking.paymentStatus} onChange={e => {
                     const paymentStatus = e.target.value;
                     setNewBooking({
                       ...newBooking,
@@ -1528,7 +1834,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                       paymentDueDate: paymentStatus === 'ABONADO' ? newBooking.paymentDueDate : ''
                     });
                   }} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
-                    <option value="PENDIENTE">PENDIENTE</option>
+                    {editedPurchaseAmount <= 0 && <option value="PENDIENTE">PENDIENTE</option>}
                     <option value="ABONADO">ABONADO</option>
                     {(!editingBookingId || completingQuote || activeView === 'purchases') && <option value="PAGADO">PAGADO</option>}
                   </select>
@@ -1537,7 +1843,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
 
               {!editingQuote && newBooking.paymentStatus === 'ABONADO' && (
                 <div style={{ padding: '12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Cantidad Abonada (COP):</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>
+                    {addingPayment ? 'Nuevo abono (COP):' : editedPurchaseAmount > 0 ? 'Valor abonado acumulado (COP):' : 'Cantidad abonada (COP):'}
+                  </label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
                     <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
                     <input
@@ -1548,26 +1856,34 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                       value={formatAmountInput(newBooking.paidAmount)}
                       onChange={e => {
                         const parsedAmount = parseAmountInput(e.target.value);
-                        const paidAmount = parsedAmount === '' ? '' : Math.min(formTotalValue, parsedAmount);
+                        const maxAmount = addingPayment
+                          ? Math.max(0, formTotalValue - editedPurchaseAmount)
+                          : formTotalValue;
+                        const paidAmount = parsedAmount === '' ? '' : Math.min(maxAmount, parsedAmount);
                         setNewBooking({ ...newBooking, paidAmount });
                       }}
                       style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }}
                     />
                   </div>
+                  {addingPayment && (
+                    <p style={{ margin: '8px 0 0', color: '#4b5563', fontSize: '0.85rem' }}>
+                      Abonado antes: {formatCurrency(editedPurchaseAmount)}
+                    </p>
+                  )}
                   <div style={{ marginTop: '12px' }}>
                     <label htmlFor="admin-payment-due-date" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha límite para completar el pago:</label>
                     <input
                       id="admin-payment-due-date"
                       type="date"
-                      required
+                      required={!addingPayment || editedPurchaseAmount + formPaidAmount < formTotalValue}
                       value={newBooking.paymentDueDate}
                       onChange={e => setNewBooking({ ...newBooking, paymentDueDate: e.target.value })}
                       style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                     />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontWeight: 'bold' }}>
-                    <span>Abonado: {formatCurrency(formPaidAmount)}</span>
-                    <span style={{ color: '#dc2626' }}>Falta: {formatCurrency(Math.max(0, formTotalValue - formPaidAmount))}</span>
+                    <span>Abonado acumulado: {formatCurrency(addingPayment ? editedPurchaseAmount + formPaidAmount : formPaidAmount)}</span>
+                    <span style={{ color: '#dc2626' }}>Falta: {formatCurrency(Math.max(0, formTotalValue - (addingPayment ? editedPurchaseAmount + formPaidAmount : formPaidAmount)))}</span>
                   </div>
                 </div>
               )}
@@ -1588,7 +1904,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     opacity: isSaving ? 0.7 : 1
                   }}
                 >
-                  {isSaving ? 'Guardando...' : completingQuote ? 'Registrar compra y mover a Compras' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
+                  {isSaving ? 'Guardando...' : completingQuote ? 'Registrar compra y mover a Compras' : addingPayment ? 'Registrar abono' : editingBookingId ? 'Guardar Cambios' : 'Guardar Venta'}
                 </button>
                 <button type="button" onClick={() => void closeEditingModal()} style={{ flex: 1, padding: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
                   Cancelar

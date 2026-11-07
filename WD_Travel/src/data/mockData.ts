@@ -17,9 +17,19 @@ export interface Passenger {
   documentType?: string;
 }
 
+export interface PaymentRecord {
+  amount: number;
+  date: string;
+  method: string;
+}
+
 export interface Booking {
   id: string;
   quoteDate?: string;
+  quoteStatus?: 'PENDING' | 'SENT' | 'PURCHASED';
+  originQuoteId?: string;
+  sentAt?: string;
+  advisorEmail?: string;
   purchaseDate: string;
   firstName?: string;
   lastName?: string;
@@ -46,6 +56,7 @@ export interface Booking {
   paymentStatus: string;
   paidAmount: number;
   paymentDueDate?: string;
+  paymentHistory?: PaymentRecord[];
   passengers: Passenger[];
 }
 
