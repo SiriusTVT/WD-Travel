@@ -30,9 +30,11 @@ const getNameParts = (firstName = '', lastName = '', fullName = '') => {
 };
 
 const getServiceType = (booking: Booking): ServiceType => booking.serviceType ?? (
-  booking.isPackage
-    ? (booking.packageType || booking.packageName ? 'PAQUETES' : 'TIQUETE_HOTEL')
-    : 'TIQUETE'
+  booking.isPackage || booking.packageType || booking.packageName
+    ? 'PAQUETES'
+    : booking.isTicket
+      ? 'TIQUETE'
+      : 'HOTEL'
 );
 
 type ClientHistoryRecord = Booking & { recordType: 'quote' | 'purchase' };
@@ -89,9 +91,9 @@ const getPaymentDueState = (dueDate: string, today: string) => {
   return 'Pendiente';
 };
 
-const getBookingRoute = (booking: Pick<Booking, 'route' | 'tripType' | 'returnDate' | 'serviceType'>) => {
+const getBookingRoute = (booking: Booking) => {
   const routeParts = booking.route.split(' ➔ ').map(stop => stop.trim()).filter(Boolean);
-  if (booking.serviceType === 'HOTEL') return [routeParts[0] || ''];
+  if (getServiceType(booking) === 'HOTEL') return [routeParts[0] || ''];
   const origin = routeParts[0] || '';
   const isRoundTrip = (booking.tripType ?? (booking.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP';
   const lastStop = routeParts[routeParts.length - 1] || '';
@@ -124,6 +126,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [addingPayment, setAddingPayment] = useState(false);
+  const [manualRecordType, setManualRecordType] = useState<'QUOTE' | 'PURCHASE'>('QUOTE');
   const [lockedCedula, setLockedCedula] = useState('');
   const [completingQuote, setCompletingQuote] = useState(false);
   const [editingQuote, setEditingQuote] = useState(false);
@@ -189,7 +192,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setShowAddModal(false);
     setEditingBookingId(null);
     setAddingPayment(false);
-    setAddingPayment(false);
+    setManualRecordType('QUOTE');
     setCompletingQuote(false);
     setEditingQuote(false);
     resetForm();
@@ -385,9 +388,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     adultCount: 1 as number | '',
     childCount: 0 as number | '',
     childAges: [] as (number | '')[],
-    serviceType: 'PAQUETES' as ServiceType,
-    isTicket: false,
-    isPackage: true,
+    serviceType: 'TIQUETE' as ServiceType,
+    isTicket: true,
+    isPackage: false,
     packageType: '' as PackageType | '',
     packageName: '',
     airline: '',
@@ -417,9 +420,9 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       adultCount: 1,
       childCount: 0,
       childAges: [],
-      serviceType: 'PAQUETES',
-      isTicket: false,
-      isPackage: true,
+      serviceType: 'TIQUETE',
+      isTicket: true,
+      isPackage: false,
       packageType: '' as PackageType | '',
       packageName: '',
       airline: '',
@@ -435,6 +438,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     if (!await acquireClientLock(booking.cedula, booking.id)) return false;
 
     setAddingPayment(false);
+    setManualRecordType('QUOTE');
     setCompletingQuote(false);
     setEditingQuote(false);
     const routeParts = getBookingRoute(booking);
@@ -576,6 +580,12 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const bookingForEdit = bookings.find(booking => booking.id === editingBookingId);
+    const hasPaymentAgreement = newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO';
+    const registeringPurchase = completingQuote ||
+      manualRecordType === 'PURCHASE' ||
+      hasPaymentAgreement ||
+      Boolean(bookingForEdit?.purchaseDate);
     const adultCount = Number(newBooking.adultCount);
     const childCount = Number(newBooking.childCount);
     const hasInvalidPassengerCounts =
@@ -630,7 +640,6 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
 
     const totalValue = Number(newBooking.totalValue);
-    const bookingForEdit = bookings.find(booking => booking.id === editingBookingId);
     const enteredPaidAmount = Number(newBooking.paidAmount);
     const previousRecordedAmount = Number(bookingForEdit?.paidAmount) || 0;
     const paidAmount = addingPayment
@@ -664,7 +673,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       return;
     }
 
-    if (completingQuote && (
+    if (registeringPurchase && !editingBookingId && !editingQuote && (
       !newBooking.bookingCode.trim() ||
       newBooking.bookingCode.trim().length > 30 ||
       (newBooking.serviceType !== 'HOTEL' && (
@@ -765,6 +774,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       setShowAddModal(false);
       setEditingBookingId(null);
       setAddingPayment(false);
+      setManualRecordType('QUOTE');
       setEditingQuote(false);
       await releaseClientLock(newBooking.cedula);
       resetForm();
@@ -772,8 +782,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       return;
     }
 
-    const hasPaymentAgreement = newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO';
-    const purchaseDate = completingQuote || hasPaymentAgreement
+    const purchaseDate = registeringPurchase
       ? existingBooking?.purchaseDate || newBooking.purchaseDate || getLocalDateString()
       : existingBooking?.purchaseDate || '';
     const finalPaidAmount = newBooking.paymentStatus === 'PAGADO'
@@ -877,7 +886,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
 
       try {
         setIsSaving(true);
-        const isPurchase = newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO' || Boolean(purchaseDate);
+        const isPurchase = registeringPurchase;
         const response = await fetch(isPurchase ? '/api/sales' : '/api/quotes/manual', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -906,7 +915,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     await releaseClientLock(newBooking.cedula);
     resetForm();
 
-    const requestedView = completingQuote || newBooking.paymentStatus === 'ABONADO' || newBooking.paymentStatus === 'PAGADO' ? 'purchases' : 'quotes';
+    const requestedView = registeringPurchase ? 'purchases' : 'quotes';
     const targetView = role === 'admin' ? requestedView : 'quotes';
     setActiveView(targetView);
     if (targetView === 'purchases') {
@@ -960,7 +969,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     ? pendingQuoteGroups
     : activeView === 'sentQuotes' ? sentQuoteGroups : purchaseGroups;
   const adminPackageCategories = getAvailablePackageCategories(getLocalDateString());
-  const selectedAdminPackages = adminPackageCategories.find(category => category.id === newBooking.packageType)?.packages ?? [];
+  const selectedAdminPackageValue = newBooking.packageType && newBooking.packageName
+    ? `${newBooking.packageType}::${newBooking.packageName}`
+    : '';
+  const isHistoricalPackage = Boolean(newBooking.packageType && newBooking.packageName) &&
+    !adminPackageCategories.some(category =>
+      category.id === newBooking.packageType &&
+      category.packages.some(travelPackage => travelPackage.title === newBooking.packageName)
+    );
   const editedPurchaseAmount = Number(bookings.find(booking => booking.id === editingBookingId)?.paidAmount) || 0;
 
   const formatCurrency = (amount: number) => amount.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
@@ -985,6 +1001,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
           onClick={() => {
             setEditingBookingId(null);
             setAddingPayment(false);
+            setManualRecordType('QUOTE');
             setLockedCedula('');
             setEditingQuote(false);
             setCompletingQuote(false);
@@ -1534,14 +1551,49 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
             )}
             
             <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+              {!editingBookingId && !completingQuote && !editingQuote && (
+                <div>
+                  <label htmlFor="admin-record-type" style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '5px' }}>¿Qué deseas registrar?</label>
+                  <select
+                    id="admin-record-type"
+                    value={manualRecordType}
+                    onChange={event => {
+                      const recordType = event.target.value as 'QUOTE' | 'PURCHASE';
+                      setManualRecordType(recordType);
+                      setNewBooking(current => ({
+                        ...current,
+                        purchaseDate: recordType === 'PURCHASE' ? getLocalDateString() : ''
+                      }));
+                    }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="QUOTE">Cotización para seguimiento</option>
+                    <option value="PURCHASE">Compra realizada por WhatsApp</option>
+                  </select>
+                </div>
+              )}
+              {manualRecordType === 'PURCHASE' && !editingBookingId && !completingQuote && !editingQuote && (
+                <div>
+                  <label htmlFor="admin-purchase-date" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha de compra:</label>
+                  <input
+                    id="admin-purchase-date"
+                    required
+                    type="date"
+                    max={getLocalDateString()}
+                    value={newBooking.purchaseDate}
+                    onChange={event => setNewBooking(current => ({ ...current, purchaseDate: event.target.value }))}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+                  />
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Nombres:</label>
-                  <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'\-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: María José" value={newBooking.firstName} onChange={e => setNewBooking({...newBooking, firstName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Apellidos:</label>
-                  <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: Pérez Gómez" value={newBooking.lastName} onChange={e => setNewBooking({...newBooking, lastName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
+                  <input required type="text" minLength={2} maxLength={60} pattern="[\p{L}][\p{L}\s'\-]{1,59}" title="Usa entre 2 y 60 letras; se permiten espacios, guiones y apóstrofos." placeholder="Ej: Pérez Gómez" value={newBooking.lastName} onChange={e => setNewBooking({...newBooking, lastName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de documento:</label>
@@ -1687,6 +1739,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                       tripType: serviceType === 'HOTEL' ? 'ROUND_TRIP' : current.tripType
                     }));
                     if (serviceType === 'HOTEL') setOrigin('');
+                    if (serviceType !== 'PAQUETES' && newBooking.serviceType === 'PAQUETES') setDestination('');
                   }}
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                 >
@@ -1698,54 +1751,49 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               </div>
 
               {newBooking.isPackage && (
-                <>
-                  <div>
-                    <label htmlFor="admin-package-type" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de paquete:</label>
-                    <select
-                      id="admin-package-type"
-                      required
-                      value={newBooking.packageType}
-                      onChange={e => setNewBooking({
-                        ...newBooking,
-                        packageType: e.target.value as PackageType | '',
-                        packageName: ''
-                      })}
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                    >
-                      <option value="">Selecciona el tipo de paquete</option>
-                      {newBooking.packageType && !adminPackageCategories.some(category => category.id === newBooking.packageType) && (
-                        <option value={newBooking.packageType}>
-                          {getPackageTypeLabel(newBooking.packageType) || newBooking.packageType} (registro histórico)
+                <div>
+                  <label htmlFor="admin-package-selection" style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '5px' }}>Paquete de interés:</label>
+                  <select
+                    id="admin-package-selection"
+                    required
+                    value={selectedAdminPackageValue}
+                    onChange={event => {
+                      const separatorIndex = event.target.value.indexOf('::');
+                      if (separatorIndex < 0) {
+                        setNewBooking(current => ({ ...current, packageType: '', packageName: '' }));
+                        setDestination('');
+                        return;
+                      }
+
+                      const packageType = event.target.value.slice(0, separatorIndex) as PackageType;
+                      const packageName = event.target.value.slice(separatorIndex + 2);
+                      const selectedPackage = adminPackageCategories
+                        .find(category => category.id === packageType)
+                        ?.packages.find(travelPackage => travelPackage.title === packageName);
+                      setNewBooking(current => ({ ...current, packageType, packageName }));
+                      setDestination(selectedPackage?.formDestination ?? '');
+                    }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">Selecciona un paquete</option>
+                    {adminPackageCategories.map(category => (
+                      <optgroup key={category.id} label={category.title}>
+                        {category.packages.map(travelPackage => (
+                          <option key={`${category.id}-${travelPackage.title}`} value={`${category.id}::${travelPackage.title}`}>
+                            {travelPackage.destination} — {travelPackage.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                    {isHistoricalPackage && (
+                      <optgroup label="Paquetes históricos (solo edición)">
+                        <option value={selectedAdminPackageValue}>
+                          {getPackageTypeLabel(newBooking.packageType)} · {newBooking.packageName}
                         </option>
-                      )}
-                      {adminPackageCategories.map(category => <option key={category.id} value={category.id}>{category.title}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="admin-package-name" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Paquete disponible:</label>
-                    <select
-                      id="admin-package-name"
-                      required
-                      value={newBooking.packageName}
-                      onChange={e => {
-                        const selectedPackage = selectedAdminPackages.find(travelPackage => travelPackage.title === e.target.value);
-                        setNewBooking(current => ({ ...current, packageName: e.target.value }));
-                        if (selectedPackage?.formDestination) setDestination(selectedPackage.formDestination);
-                      }}
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                    >
-                      <option value="">Selecciona un paquete vigente</option>
-                      {newBooking.packageName && !selectedAdminPackages.some(travelPackage => travelPackage.title === newBooking.packageName) && (
-                        <option value={newBooking.packageName}>{newBooking.packageName} (paquete histórico)</option>
-                      )}
-                      {selectedAdminPackages.map(travelPackage => (
-                        <option key={travelPackage.title} value={travelPackage.title}>
-                          {travelPackage.title} — {travelPackage.destination}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </>
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
               )}
 
               {/* Origen */}
