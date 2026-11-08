@@ -1977,3 +1977,55 @@ select:focus {
 .site-footer-certificate:hover {
   border-color: var(--wd-lime);
 }
+
+/* Evita solapamientos en las tarjetas de paquetes, incluso con contenido largo o nuevo. */
+.package-image {
+  align-items: stretch;
+  gap: 14px;
+}
+
+.package-destination {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.package-badge {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.package-image-credit {
+  position: relative !important;
+  inset: auto !important;
+  display: block;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin-top: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+  line-height: 1.4;
+}
+
+@media (max-width: 480px) {
+  .package-image {
+    min-height: 210px;
+    padding: 16px;
+  }
+
+  .package-destination {
+    font-size: clamp(1.55rem, 7vw, 2rem);
+    line-height: 1.15;
+  }
+
+  .package-image-credit {
+    font-size: 0.68rem;
+  }
+}
