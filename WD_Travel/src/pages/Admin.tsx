@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SERVICE_TYPE_LABELS, type Booking, type PaymentRecord, type ServiceType } from '../data/mockData';
 import { LocationSelector } from '../components/LocationSelector';
+import { ReturnRouteSelector } from '../components/ReturnRouteSelector';
 import { CallingCodeSelector } from '../components/CallingCodeSelector';
 import { isValidCallingCode } from '../data/callingCodes';
 import { getPackageTypeLabel, type PackageType } from '../data/packageTypes';
 import { getAvailablePackageCategories } from '../data/packageCatalog';
+import { formatBookingRoute } from '../bookingRoutes';
 import { formatDisplayDate } from '../formatDate';
 import {
   clampIntegerInput,
@@ -92,16 +94,20 @@ const getPaymentDueState = (dueDate: string, today: string) => {
 };
 
 const getBookingRoute = (booking: Booking) => {
-  const routeParts = booking.route.split(' ➔ ').map(stop => stop.trim()).filter(Boolean);
-  if (getServiceType(booking) === 'HOTEL') return [routeParts[0] || ''];
+  const outboundRoute = booking.route.split(' / ')[0];
+  const routeParts = outboundRoute.split(' ➔ ').map(stop => stop.trim()).filter(Boolean);
+  if (getServiceType(booking) === 'HOTEL') return routeParts[0] || '';
   const origin = routeParts[0] || '';
   const isRoundTrip = (booking.tripType ?? (booking.returnDate ? 'ROUND_TRIP' : 'ONE_WAY')) === 'ROUND_TRIP';
+  if (isRoundTrip && booking.hasDifferentReturnRoute && booking.returnOrigin && booking.returnDestination) {
+    return `${origin} ➔ ${routeParts[1] || ''} / ${booking.returnOrigin} ➔ ${booking.returnDestination}`;
+  }
   const lastStop = routeParts[routeParts.length - 1] || '';
   const destination = isRoundTrip && routeParts.length > 2 && lastStop === origin
     ? routeParts[routeParts.length - 2]
     : lastStop;
 
-  return [origin, destination, ...(isRoundTrip ? [origin] : [])];
+  return [origin, destination, ...(isRoundTrip ? [origin] : [])].join(' ➔ ');
 };
 
 interface AdminProps {
@@ -133,6 +139,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   // Estados de ubicación
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [returnOrigin, setReturnOrigin] = useState('');
+  const [returnDestination, setReturnDestination] = useState('');
   const [isLoadingPurchases, setIsLoadingPurchases] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const lockRenewalRef = useRef<number | null>(null);
@@ -385,6 +393,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     travelDate: '',
     returnDate: '',
     tripType: 'ROUND_TRIP' as 'ONE_WAY' | 'ROUND_TRIP',
+    hasDifferentReturnRoute: false,
     adultCount: 1 as number | '',
     childCount: 0 as number | '',
     childAges: [] as (number | '')[],
@@ -404,6 +413,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const resetForm = () => {
     setOrigin('');
     setDestination('');
+    setReturnOrigin('');
+    setReturnDestination('');
     setNewBooking({
       quoteDate: getLocalDateString(),
       purchaseDate: '',
@@ -417,6 +428,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       travelDate: '',
       returnDate: '',
       tripType: 'ROUND_TRIP',
+      hasDifferentReturnRoute: false,
       adultCount: 1,
       childCount: 0,
       childAges: [],
@@ -441,10 +453,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     setManualRecordType('QUOTE');
     setCompletingQuote(false);
     setEditingQuote(false);
-    const routeParts = getBookingRoute(booking);
+    const routeParts = booking.route
+      .split(' / ')[0]
+      .split(' ➔ ')
+      .map(stop => stop.trim())
+      .filter(Boolean);
     const serviceType = getServiceType(booking);
     setOrigin(serviceType === 'HOTEL' ? '' : routeParts[0] || '');
     setDestination(serviceType === 'HOTEL' ? routeParts[0] || '' : routeParts[1] || '');
+    setReturnOrigin(booking.returnOrigin || routeParts[1] || '');
+    setReturnDestination(booking.returnDestination || routeParts[0] || '');
     const primaryName = getNameParts(
       booking.firstName || booking.passengers?.[0]?.firstName,
       booking.lastName || booking.passengers?.[0]?.lastName,
@@ -462,6 +480,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       travelDate: booking.travelDate,
       returnDate: booking.returnDate,
       tripType: booking.tripType ?? (booking.returnDate ? 'ROUND_TRIP' : 'ONE_WAY'),
+      hasDifferentReturnRoute: booking.hasDifferentReturnRoute ?? false,
       adultCount: booking.adultCount ?? 1,
       childCount: booking.childCount ?? 0,
       childAges: Array.from(
@@ -604,6 +623,15 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       newBooking.serviceType !== 'HOTEL' &&
       (!isValidLocation(origin) || origin === destination)
     );
+    const hasInvalidReturnRoute =
+      newBooking.serviceType !== 'HOTEL' &&
+      newBooking.tripType === 'ROUND_TRIP' &&
+      newBooking.hasDifferentReturnRoute &&
+      (
+        !isValidLocation(returnOrigin) ||
+        !isValidLocation(returnDestination) ||
+        returnOrigin === returnDestination
+      );
     const hasInvalidDates =
       !isValidDate(newBooking.travelDate) ||
       (!editingBookingId && newBooking.travelDate < getLocalDateString()) ||
@@ -612,8 +640,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         newBooking.returnDate < newBooking.travelDate
       ));
 
-    if (hasInvalidRoute || hasInvalidDates || hasInvalidPassengerCounts) {
-      window.alert('Verifica la ruta, las fechas y la cantidad de viajeros. Cada niño debe tener una edad entre 0 y 17 años.');
+    if (hasInvalidRoute || hasInvalidReturnRoute || hasInvalidDates || hasInvalidPassengerCounts) {
+      window.alert('Verifica las rutas, las fechas y la cantidad de viajeros. Cada niño debe tener una edad entre 0 y 17 años.');
       return;
     }
 
@@ -694,7 +722,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
 
     const finalRoute = newBooking.serviceType === 'HOTEL'
       ? destination
-      : [origin, destination, ...(newBooking.tripType === 'ROUND_TRIP' ? [origin] : [])].join(' ➔ ');
+      : formatBookingRoute({
+        origin,
+        destination,
+        tripType: newBooking.tripType,
+        hasDifferentReturnRoute: newBooking.hasDifferentReturnRoute,
+        returnOrigin,
+        returnDestination
+      });
     const firstName = newBooking.firstName.trim();
     const lastName = newBooking.lastName.trim();
     const passengerName = joinName(firstName, lastName);
@@ -717,6 +752,16 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       travelDate: newBooking.travelDate,
       returnDate: newBooking.tripType === 'ROUND_TRIP' ? newBooking.returnDate : '',
       tripType: newBooking.tripType,
+      hasDifferentReturnRoute:
+        newBooking.serviceType !== 'HOTEL' &&
+        newBooking.tripType === 'ROUND_TRIP' &&
+        newBooking.hasDifferentReturnRoute,
+      returnOrigin: newBooking.serviceType !== 'HOTEL' && newBooking.tripType === 'ROUND_TRIP'
+        ? newBooking.hasDifferentReturnRoute ? returnOrigin : destination
+        : '',
+      returnDestination: newBooking.serviceType !== 'HOTEL' && newBooking.tripType === 'ROUND_TRIP'
+        ? newBooking.hasDifferentReturnRoute ? returnDestination : origin
+        : '',
       adultCount: Number(newBooking.adultCount),
       childCount: Number(newBooking.childCount),
       childAges: newBooking.childAges.map(Number),
@@ -1192,7 +1237,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   <tr key={booking.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '14px' }}>{formatDisplayDate(booking.purchaseDate)}</td>
                     <td style={{ padding: '14px', fontWeight: 'bold' }}>{booking.passenger}</td>
-                    <td style={{ padding: '14px' }}>{getBookingRoute(booking).join(' ➔ ')}</td>
+                    <td style={{ padding: '14px' }}>{getBookingRoute(booking)}</td>
                     <td style={{ padding: '14px' }}>{booking.paymentMethod}</td>
                     <td style={{ padding: '14px' }}>{formatCurrency(booking.totalValue)}</td>
                     <td style={{ padding: '14px', color: '#16a34a' }}>{formatCurrency(Number(booking.paidAmount) || 0)}</td>
@@ -1356,7 +1401,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                           <div style={{ display: 'grid', gap: '12px' }}>
                             {expandedClientHistory.map((trip, index) => {
                               const serviceType = getServiceType(trip);
-                              const tripRoute = getBookingRoute(trip).filter(Boolean).join(' ➔ ') || 'Destino no registrado';
+                              const tripRoute = getBookingRoute(trip) || 'Destino no registrado';
                               const isQuote = trip.recordType === 'quote';
                               return (
                                 <article key={`${trip.recordType}-${trip.id}`} style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #dbe3ee', borderRadius: '10px' }}>
@@ -1487,7 +1532,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               ) : clientHistory.length ? clientHistory.map((trip, index) => (
                 <div key={`${trip.recordType}-${trip.id}-${index}`} style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
                   <strong>{trip.recordType === 'purchase' ? 'Compra registrada' : 'Cotización'}</strong>
-                  <div>{trip.packageName || SERVICE_TYPE_LABELS[getServiceType(trip)]} · {trip.route}</div>
+                  <div>{trip.packageName || SERVICE_TYPE_LABELS[getServiceType(trip)]} · {getBookingRoute(trip)}</div>
                   <div>Viaje: {formatDisplayDate(trip.travelDate)} · Registro: {formatDisplayDate(trip.quoteDate || trip.purchaseDate)}</div>
                   {trip.recordType === 'purchase' && <div>Valor: {formatCurrency(trip.totalValue)}</div>}
                 </div>
@@ -1513,7 +1558,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               </div>
             )}
             <p><strong>Celular / WhatsApp:</strong> {formatPhoneForDisplay(selectedPassenger.phone)}</p>
-            <p><strong>Ruta:</strong> {getBookingRoute(selectedPassenger).join(' ➔ ')}</p>
+            <p><strong>Ruta:</strong> {getBookingRoute(selectedPassenger)}</p>
             <p><strong>Código de Reserva:</strong> {selectedPassenger.bookingCode}</p>
             <p><strong>Aerolínea:</strong> {selectedPassenger.airline}</p>
             <p><strong>Método de Pago:</strong> {selectedPassenger.paymentMethod}</p>
@@ -1736,7 +1781,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                       isPackage: serviceType === 'PAQUETES',
                       packageType: serviceType === 'PAQUETES' ? current.packageType : '',
                       packageName: serviceType === 'PAQUETES' ? current.packageName : '',
-                      tripType: serviceType === 'HOTEL' ? 'ROUND_TRIP' : current.tripType
+                      tripType: serviceType === 'HOTEL' ? 'ROUND_TRIP' : current.tripType,
+                      hasDifferentReturnRoute: serviceType === 'HOTEL' ? false : current.hasDifferentReturnRoute
                     }));
                     if (serviceType === 'HOTEL') setOrigin('');
                     if (serviceType !== 'PAQUETES' && newBooking.serviceType === 'PAQUETES') setDestination('');
@@ -1808,6 +1854,23 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 <LocationSelector labelPrefix="Destino" value={destination} onChange={setDestination} />
               </div>
 
+              {newBooking.serviceType !== 'HOTEL' && newBooking.tripType === 'ROUND_TRIP' && (
+                <ReturnRouteSelector
+                  enabled={newBooking.hasDifferentReturnRoute}
+                  returnOrigin={returnOrigin}
+                  returnDestination={returnDestination}
+                  onEnabledChange={enabled => {
+                    setNewBooking(current => ({ ...current, hasDifferentReturnRoute: enabled }));
+                    if (enabled) {
+                      setReturnOrigin(current => current || destination);
+                      setReturnDestination(current => current || origin);
+                    }
+                  }}
+                  onReturnOriginChange={setReturnOrigin}
+                  onReturnDestinationChange={setReturnDestination}
+                />
+              )}
+
               {!editingQuote && <div style={{ display: 'grid', gridTemplateColumns: newBooking.serviceType === 'HOTEL' ? '1fr' : '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Código Reserva:</label>
@@ -1829,7 +1892,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     setNewBooking(current => ({
                       ...current,
                       tripType,
-                      returnDate: tripType === 'ONE_WAY' ? '' : current.returnDate
+                      returnDate: tripType === 'ONE_WAY' ? '' : current.returnDate,
+                      hasDifferentReturnRoute: tripType === 'ONE_WAY' ? false : current.hasDifferentReturnRoute
                     }));
                   }}
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}

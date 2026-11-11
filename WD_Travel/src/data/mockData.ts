@@ -42,6 +42,9 @@ export interface Booking {
   travelDate: string;
   returnDate: string;
   tripType?: 'ONE_WAY' | 'ROUND_TRIP';
+  hasDifferentReturnRoute?: boolean;
+  returnOrigin?: string;
+  returnDestination?: string;
   adultCount?: number;
   childCount?: number;
   childAges?: number[];

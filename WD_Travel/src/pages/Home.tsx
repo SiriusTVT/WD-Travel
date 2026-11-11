@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LocationSelector } from '../components/LocationSelector.tsx';
+import { ReturnRouteSelector } from '../components/ReturnRouteSelector';
 import { socialLinks } from '../components/Navbar';
 import logo from '../assets/logo.png';
 import { CallingCodeSelector } from '../components/CallingCodeSelector.tsx';
 import { SERVICE_TYPE_LABELS, type Booking, type ServiceType } from '../data/mockData';
+import { formatBookingRoute } from '../bookingRoutes';
 import { type PackageType } from '../data/packageTypes';
 import { getAvailablePackageCategories, type PackageCategory, type TravelPackage } from '../data/packageCatalog';
 import {
@@ -107,9 +109,22 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const [travelDate, setTravelDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ROUND_TRIP');
+  const [hasDifferentReturnRoute, setHasDifferentReturnRoute] = useState(false);
+  const [returnOrigin, setReturnOrigin] = useState('');
+  const [returnDestination, setReturnDestination] = useState('');
   const [bookingType, setBookingType] = useState<BookingType>('TIQUETE');
   const isHotelOnly = bookingType === 'HOTEL';
   const needsReturnDate = isHotelOnly || tripType === 'ROUND_TRIP';
+  const requestedRoute = isHotelOnly
+    ? destination
+    : formatBookingRoute({
+      origin,
+      destination,
+      tripType,
+      hasDifferentReturnRoute,
+      returnOrigin,
+      returnDestination
+    });
   const [packageType, setPackageType] = useState<PackageType | ''>('');
   const [packageName, setPackageName] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -245,6 +260,11 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       !isValidContactPhone(phone, phoneCountryCode) ||
       !isValidLocation(destination) ||
       (!isHotelOnly && (!isValidLocation(origin) || origin === destination)) ||
+      (!isHotelOnly && tripType === 'ROUND_TRIP' && hasDifferentReturnRoute && (
+        !isValidLocation(returnOrigin) ||
+        !isValidLocation(returnDestination) ||
+        returnOrigin === returnDestination
+      )) ||
       !isValidDate(travelDate) ||
       travelDate < getLocalDateString() ||
       (needsReturnDate && (
@@ -287,13 +307,18 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
       phone: `${phoneCountryCode} ${phone.trim()}`,
       cedula: titular.cedula,
       documentType: titular.documentType,
-      route: isHotelOnly
-        ? destination
-        : `${origin} ➔ ${destination}${tripType === 'ROUND_TRIP' ? ` ➔ ${origin}` : ''}`,
+      route: requestedRoute,
       bookingCode: 'PENDIENTE',
       travelDate,
       returnDate: needsReturnDate ? returnDate : '',
       tripType,
+      hasDifferentReturnRoute: !isHotelOnly && tripType === 'ROUND_TRIP' && hasDifferentReturnRoute,
+      returnOrigin: !isHotelOnly && tripType === 'ROUND_TRIP'
+        ? hasDifferentReturnRoute ? returnOrigin : destination
+        : '',
+      returnDestination: !isHotelOnly && tripType === 'ROUND_TRIP'
+        ? hasDifferentReturnRoute ? returnDestination : origin
+        : '',
       adultCount: normalizedAdultCount,
       childCount: normalizedChildCount,
       childAges: childAges.slice(0, normalizedChildCount).map(Number),
@@ -568,7 +593,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             <div style={{ padding: '30px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', borderRadius: '12px', textAlign: 'center' }}>
               <h3 style={{ margin: '0 0 10px 0', fontSize: '1.4rem' }}>¡Solicitud enviada con éxito!</h3>
               <p style={{ margin: 0 }}>
-                Cotización de <strong>{SERVICE_TYPE_LABELS[bookingType]}</strong> registrada para: <strong>{isHotelOnly ? destination : `${origin} ➔ ${destination}`}</strong>. Nos pondremos en contacto lo más pronto posible.
+                Cotización de <strong>{SERVICE_TYPE_LABELS[bookingType]}</strong> registrada para: <strong>{requestedRoute}</strong>. Nos pondremos en contacto lo más pronto posible.
               </p>
               {notificationSent === false && (
                 <p role="status" style={{ margin: '12px 0 0', color: '#92400e' }}>
@@ -635,6 +660,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                 <select required value={bookingType} onChange={e => {
                   const nextBookingType = e.target.value as BookingType;
                   setBookingType(nextBookingType);
+                  if (nextBookingType === 'HOTEL') setHasDifferentReturnRoute(false);
                   if (nextBookingType !== 'PAQUETES') {
                     setPackageType('');
                     setPackageName('');
@@ -695,7 +721,10 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   onChange={e => {
                     const nextTripType = e.target.value as 'ONE_WAY' | 'ROUND_TRIP';
                     setTripType(nextTripType);
-                    if (nextTripType === 'ONE_WAY') setReturnDate('');
+                    if (nextTripType === 'ONE_WAY') {
+                      setReturnDate('');
+                      setHasDifferentReturnRoute(false);
+                    }
                   }}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--wd-line)' }}
                 >
@@ -703,6 +732,23 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   <option value="ONE_WAY">Solo ida</option>
                 </select>
               </div>}
+
+              {!isHotelOnly && tripType === 'ROUND_TRIP' && (
+                <ReturnRouteSelector
+                  enabled={hasDifferentReturnRoute}
+                  returnOrigin={returnOrigin}
+                  returnDestination={returnDestination}
+                  onEnabledChange={enabled => {
+                    setHasDifferentReturnRoute(enabled);
+                    if (enabled) {
+                      setReturnOrigin(current => current || destination);
+                      setReturnDestination(current => current || origin);
+                    }
+                  }}
+                  onReturnOriginChange={setReturnOrigin}
+                  onReturnDestinationChange={setReturnDestination}
+                />
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: needsReturnDate ? '1fr 1fr' : '1fr', gap: '20px' }}>
                 <div>
