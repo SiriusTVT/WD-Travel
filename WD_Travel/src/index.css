@@ -1977,3 +1977,105 @@ select:focus {
 .site-footer-certificate:hover {
   border-color: var(--wd-lime);
 }
+
+/* Evita solapamientos en las tarjetas de paquetes, incluso con contenido largo o nuevo. */
+.package-image {
+  align-items: stretch;
+  gap: 14px;
+}
+
+.package-destination {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.package-badge {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.package-image-credit {
+  position: relative !important;
+  inset: auto !important;
+  display: block;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin-top: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+  line-height: 1.4;
+}
+
+@media (max-width: 480px) {
+  .package-image {
+    min-height: 210px;
+    padding: 16px;
+  }
+
+  .package-destination {
+    font-size: clamp(1.55rem, 7vw, 2rem);
+    line-height: 1.15;
+  }
+
+  .package-image-credit {
+    font-size: 0.68rem;
+  }
+}
+
+/* La etiqueta y el crédito de la foto comparten la fila inferior, sin montarse. */
+.package-image {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: 12px;
+  row-gap: 14px;
+}
+
+.package-destination {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  align-self: start;
+  min-width: 0;
+}
+
+.package-badge {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  align-self: end;
+  max-width: min(100%, 180px);
+  text-align: center;
+}
+
+.package-image-credit {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  align-self: end;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  text-align: left;
+}
+
+@media (max-width: 480px) {
+  .package-image {
+    column-gap: 8px;
+  }
+
+  .package-badge {
+    max-width: 132px;
+    padding: 5px 9px;
+    font-size: 0.7rem;
+  }
+}
