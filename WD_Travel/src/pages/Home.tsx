@@ -474,7 +474,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           <div className="presentation-video" onTouchStart={event => { swipeStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={event => {
             if (swipeStartX.current === null) return;
             const distance = (event.changedTouches[0]?.clientX ?? swipeStartX.current) - swipeStartX.current;
-            if (Math.abs(distance) > 55) setActiveReel(index => (index + (distance < 0 ? 1 : 1)) % 2);
+            if (Math.abs(distance) > 55) setActiveReel(index => (index + 1) % reels.length);
             swipeStartX.current = null;
           }}>
             {reels.map((reel, index) => index === activeReel && (
@@ -505,7 +505,8 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
             <span className="presentation-reels-count" aria-live="polite">{activeReel + 1} / {reels.length}</span>
             <button type="button" className="presentation-reel-arrow" onClick={() => setActiveReel(index => (index + 1) % 2)} aria-label="Video siguiente">›</button>
           </div>
-        </div>      </section>
+        </div>
+      </section>
 
       <section className="packages-section" id="packages-section" aria-labelledby="packages-title">
         <div className="packages-heading">
