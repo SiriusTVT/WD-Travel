@@ -2124,3 +2124,15 @@ select:focus {
 @media (max-width: 600px) {
   .presentation-reels { max-width: 100%; }
 }
+
+/* Instagram content stays in its own iframe, avoiding React/Instagram DOM conflicts. */
+.presentation-reels .presentation-reel-iframe {
+  display: block;
+  width: 100%;
+  height: 560px;
+  border: 0;
+  background: #fff;
+}
+@media (max-width: 600px) {
+  .presentation-reels .presentation-reel-iframe { height: 540px; }
+}
