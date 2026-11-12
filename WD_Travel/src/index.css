@@ -2079,3 +2079,48 @@ select:focus {
     font-size: 0.7rem;
   }
 }
+
+/* Compact Instagram reel carousel: preserve the original video column. */
+.presentation-reels {
+  width: 100%;
+  min-width: 0;
+  max-width: 440px;
+  margin: 0 auto;
+}
+.presentation-reels .presentation-video {
+  width: 100%;
+  max-width: 440px;
+  touch-action: pan-y;
+}
+.presentation-reels-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  margin-top: 12px;
+}
+.presentation-reel-arrow {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d9e3ef;
+  border-radius: 50%;
+  background: white;
+  color: #102f59;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.presentation-reel-arrow:hover, .presentation-reel-arrow:focus-visible {
+  background: #edf5fd;
+  border-color: #2468b3;
+}
+.presentation-reels-count {
+  font-size: .84rem;
+  font-weight: 700;
+  color: #526981;
+}
+@media (max-width: 600px) {
+  .presentation-reels { max-width: 100%; }
+}
