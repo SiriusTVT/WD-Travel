@@ -2213,3 +2213,18 @@ select:focus {
 @media (prefers-reduced-motion: reduce) {
   .presentation-choice-card { transition: none; }
 }
+
+/* WDTravel admin — protected diagnostics panel. */
+.system-monitor { padding: 24px; margin-bottom: 20px; border: 1px solid #dbe5f0; border-radius: 14px; background: #fff; color: #173964; }
+.system-monitor__heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+.system-monitor__heading h3 { margin: 0 0 6px; }
+.system-monitor__heading p, .system-monitor__note { color: #64748b; font-size: .88rem; }
+.system-monitor__badge { padding: 8px 12px; border-radius: 999px; background: #e7f1fc; font-weight: 700; }
+.system-monitor__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin: 18px 0; }
+.system-monitor__metrics > div { display: flex; flex-direction: column; gap: 8px; padding: 16px; background: #f1f6fc; border-radius: 10px; }
+.system-monitor__metrics span { font-size: .78rem; color: #526981; }
+.system-monitor__metrics strong { font-size: 1.15rem; }
+.system-monitor__checks { display: grid; gap: 8px; }
+.system-monitor__check { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 11px 14px; border: 1px solid #dbe5f0; border-radius: 8px; }
+.system-monitor__error { padding: 10px; color: #991b1b; background: #fee2e2; border-radius: 8px; }
+.system-monitor__errors { padding-left: 20px; }
