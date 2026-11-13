@@ -61,8 +61,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
     { url: 'https://www.instagram.com/reel/De0YNANsTy3/' },
     { url: 'https://www.instagram.com/reel/DflZ6ASJc6R/' }
   ];
-  const [activeReel, setActiveReel] = useState(0);
-  const swipeStartX = useRef<number | null>(null);
+  const [activeReel, setActiveReel] = useState<number | null>(null);
 
   const [today, setToday] = useState(getLocalDateString());
   const packageCategories = getAvailablePackageCategories(today);
@@ -444,27 +443,51 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           </div>
         </div>
         <div className="presentation-reels" aria-label="Videos de W.D Travel">
-          <div className="presentation-video" onTouchStart={event => { swipeStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={event => {
-            if (swipeStartX.current === null) return;
-            const distance = (event.changedTouches[0]?.clientX ?? swipeStartX.current) - swipeStartX.current;
-            if (Math.abs(distance) > 55) setActiveReel(index => (index + 1) % reels.length);
-            swipeStartX.current = null;
-          }}>
-            <iframe
-              key={reels[activeReel].url}
-              className="presentation-reel-iframe"
-              src={`${reels[activeReel].url}embed/`}
-              title={`Video ${activeReel + 1} de W.D Travel en Instagram`}
-              loading="lazy"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
-          <div className="presentation-reels-controls" aria-label="Cambiar video">
-            <button type="button" className="presentation-reel-arrow" onClick={() => setActiveReel(index => (index + 1) % 2)} aria-label="Video anterior">‹</button>
-            <span className="presentation-reels-count" aria-live="polite">{activeReel + 1} / {reels.length}</span>
-            <button type="button" className="presentation-reel-arrow" onClick={() => setActiveReel(index => (index + 1) % 2)} aria-label="Video siguiente">›</button>
-          </div>
+          {activeReel === null ? (
+            <div className="presentation-card-deck" role="group" aria-label="Elige un video de presentación">
+              {reels.map((reel, index) => (
+                <button
+                  key={reel.url}
+                  type="button"
+                  className={`presentation-choice-card presentation-choice-card--${index + 1}`}
+                  onClick={() => setActiveReel(index)}
+                  aria-label={`Ver video de presentación ${index + 1}`}
+                >
+                  <span className="presentation-choice-card__top">WD TRAVEL <span>0{index + 1}</span></span>
+                  <span className="presentation-choice-card__play" aria-hidden="true">▶</span>
+                  <span className="presentation-choice-card__bottom">
+                    <strong>{index === 0 ? 'Conócenos' : 'Nuestra experiencia'}</strong>
+                    <small>Seleccionar video</small>
+                  </span>
+                </button>
+              ))}
+              <span className="presentation-card-deck__hint">Escoge una carta para ver el video</span>
+            </div>
+          ) : (
+            <div className="presentation-player">
+              <div className="presentation-player__toolbar">
+                <button type="button" className="presentation-player__back" onClick={() => setActiveReel(null)}>
+                  ← Elegir otro video
+                </button>
+                <span>Video {activeReel + 1} de {reels.length}</span>
+              </div>
+              <div className="presentation-video">
+                <iframe
+                  key={reels[activeReel].url}
+                  className="presentation-reel-iframe"
+                  src={`${reels[activeReel].url}embed/`}
+                  title={`Video ${activeReel + 1} de W.D Travel en Instagram`}
+                  loading="lazy"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
+              <a className="presentation-player__external" href={reels[activeReel].url} target="_blank" rel="noopener noreferrer">
+                Ver video en Instagram ↗
+              </a>
+            </div>
+          )}
         </div>
       </section>
 
