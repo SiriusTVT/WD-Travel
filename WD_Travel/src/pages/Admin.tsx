@@ -31,6 +31,7 @@ const CLIENT_SOURCE_LABELS: Record<string, string> = {
   referral: 'Referido',
   other: 'Otro'
 };
+const MANUAL_CLIENT_SOURCES = Object.entries(CLIENT_SOURCE_LABELS).filter(([value]) => value !== 'website');
 const getClientSourceLabel = (source?: string) =>
   source ? (CLIENT_SOURCE_LABELS[source] || 'Sin identificar') : 'Sin registrar';
 
@@ -722,7 +723,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       return;
     }
 
-    if (!editingBookingId && !['whatsapp', 'instagram', 'facebook', 'website', 'referral', 'other'].includes(newBooking.source)) {
+    if (!editingBookingId && !MANUAL_CLIENT_SOURCES.some(([value]) => value === newBooking.source)) {
       window.alert('Selecciona de dónde llegó el cliente.');
       return;
     }
@@ -1796,9 +1797,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
                 >
                   <option value="">Selecciona un canal</option>
-                  {Object.entries(CLIENT_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  {MANUAL_CLIENT_SOURCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  {newBooking.source === 'website' && <option value="website" disabled>Página web (origen automático)</option>}
                 </select>
-                <small style={{ color: '#64748b' }}>Este dato identifica el origen comercial; no cambia si registras una cotización o una compra.</small>
+                <small style={{ color: '#64748b' }}>La página web se identifica automáticamente desde el formulario público.</small>
               </div>
               {manualRecordType === 'PURCHASE' && !editingBookingId && !completingQuote && !editingQuote && (
                 <div>
