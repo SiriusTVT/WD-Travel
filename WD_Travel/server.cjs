@@ -974,6 +974,7 @@ app.get('/api/client-history/:cedula', requireAdmin, async (request, response) =
 
 const CLIENT_SOURCES = new Set(['whatsapp', 'instagram', 'facebook', 'website', 'referral', 'other']);
 const isValidClientSource = value => typeof value === 'string' && CLIENT_SOURCES.has(value);
+const isValidManualClientSource = value => isValidClientSource(value) && value !== 'website';
 
 // Consultar cotizaciones pendientes
 app.get('/api/quotes', requireAdmin, async (request, response) => {
@@ -1017,11 +1018,15 @@ app.post('/api/quotes/manual', requireAdmin, requireClientLock, async (request, 
 
   try {
     const { _id, ...fields } = quote;
+    if (!isValidManualClientSource(fields.source)) {
+      response.status(400).json({ error: 'Selecciona un origen manual válido. Página web se asigna automáticamente.' });
+      return;
+    }
     const id = fields.id || randomBytes(16).toString('hex');
     const savedQuote = protectBookingFields({
       ...fields,
       id,
-      source: isValidClientSource(fields.source) ? fields.source : 'whatsapp',
+      source: fields.source,
       quoteStatus: 'PENDING',
       quoteDate: fields.quoteDate || new Date().toISOString().split('T')[0],
       advisorEmail: request.authUser.email,
@@ -1224,6 +1229,10 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, asyn
     const sourceQuote = targetQuoteId
       ? await quotesCollection.findOne(buildIdFilter(targetQuoteId))
       : null;
+    if (!targetQuoteId && !isValidManualClientSource(saleData.source)) {
+      response.status(400).json({ error: 'Selecciona un origen manual válido. Página web se asigna automáticamente.' });
+      return;
+    }
 
     // Preparar el registro para el esquema de ventas realizadas.
     const id = saleData.id || (targetQuoteId ? String(targetQuoteId) : randomBytes(16).toString('hex'));
