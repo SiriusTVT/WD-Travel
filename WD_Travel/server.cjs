@@ -84,6 +84,13 @@ app.use(helmet({
 app.use(express.json({ limit: '50kb' }));
 app.set('trust proxy', 1);
 
+// Lightweight liveness endpoint for external uptime checks.
+// Does not query MongoDB or expose internal configuration.
+app.get('/health', (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  response.status(200).json({ status: 'ok' });
+});
+
 function getAdminSessionSignature(payload) {
   return createHmac('sha256', ADMIN_SESSION_SECRET)
     .update(payload)
