@@ -442,6 +442,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     airline: '',
     paymentMethod: 'TRANSFERENCIA',
     totalValue: 0 as number | '',
+    commissionAmount: '' as number | '',
     paymentStatus: 'PENDIENTE',
     paidAmount: 0 as number | '',
     paymentDueDate: ''
@@ -477,6 +478,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       airline: '',
       paymentMethod: 'TRANSFERENCIA',
       totalValue: 0 as number | '',
+      commissionAmount: '' as number | '',
       paymentStatus: 'PENDIENTE',
       paidAmount: 0 as number | '',
       paymentDueDate: ''
@@ -532,6 +534,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       airline: booking.airline,
       paymentMethod: booking.paymentMethod,
       totalValue: booking.totalValue,
+      commissionAmount: booking.commissionAmount ?? '',
       paymentStatus: booking.paymentStatus,
       paidAmount: booking.paidAmount,
       paymentDueDate: booking.paymentDueDate || ''
@@ -600,6 +603,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       bookingCode: booking.bookingCode === 'PENDIENTE' ? '' : booking.bookingCode,
       airline: booking.airline === 'Por definir' ? '' : booking.airline,
       totalValue: booking.totalValue || '',
+      commissionAmount: booking.commissionAmount ?? '',
       paidAmount: booking.paidAmount || 0,
       paymentMethod: PAYMENT_METHODS.includes(booking.paymentMethod) ? booking.paymentMethod : 'TRANSFERENCIA',
       paymentStatus: 'PENDIENTE'
@@ -705,6 +709,19 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     }
 
     const totalValue = Number(newBooking.totalValue);
+    const enteredCommission = newBooking.commissionAmount;
+    const commissionAmount = enteredCommission === '' ? undefined : Number(enteredCommission);
+    if (!editingQuote && (
+      (completingQuote && commissionAmount === undefined) ||
+      (commissionAmount !== undefined && (
+        !Number.isSafeInteger(commissionAmount) ||
+        commissionAmount < 0 ||
+        commissionAmount > MAX_BOOKING_AMOUNT
+      ))
+    )) {
+      window.alert('Ingresa una comisión válida en pesos colombianos. Puede ser $0 si no aplica.');
+      return;
+    }
     const enteredPaidAmount = Number(newBooking.paidAmount);
     const previousRecordedAmount = Number(bookingForEdit?.paidAmount) || 0;
     const paidAmount = addingPayment
@@ -884,14 +901,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         method: newBooking.paymentMethod
       }]
       : paymentHistory;
+    // Empty commission inputs are not persisted as strings; historical values remain unset.
+    const { commissionAmount: _draftCommission, ...bookingFields } = newBooking;
     const bookingData = {
-      ...newBooking,
+      ...bookingFields,
       paymentMethod: completingQuote && !PAYMENT_METHODS.includes(newBooking.paymentMethod)
         ? 'TRANSFERENCIA'
         : newBooking.paymentMethod,
       purchaseDate,
       ...quoteData,
       totalValue,
+      ...(commissionAmount !== undefined ? { commissionAmount } : {}),
       paymentStatus: finalPaymentStatus,
       paidAmount: finalPaidAmount,
       paymentDueDate: finalPaymentStatus === 'ABONADO' ? newBooking.paymentDueDate : '',
@@ -1042,6 +1062,8 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       .filter(year => /^\d{4}$/.test(year))
   ])].sort((first, second) => Number(second) - Number(first));
   const salesTotal = filteredSales.reduce((total, booking) => total + (Number(booking.totalValue) || 0), 0);
+  const salesCommissions = filteredSales.reduce((total, booking) => total + (booking.commissionAmount ?? 0), 0);
+  const unrecordedCommissions = filteredSales.filter(booking => booking.commissionAmount == null).length;
   const salesCollected = filteredSales.reduce((total, booking) => total + (Number(booking.paidAmount) || 0), 0);
   const salesBalance = filteredSales.reduce(
     (total, booking) => total + Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)),
@@ -1297,6 +1319,14 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
             </article>
           </div>
 
+          <div style={{ padding: '20px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', marginBottom: '16px' }}>
+            <p style={{ margin: '0 0 8px', color: '#1e40af', fontWeight: 'bold' }}>Margen acumulado por comisiones registradas</p>
+            <strong style={{ color: '#1e40af', fontSize: '1.7rem' }}>{formatCurrency(salesCommissions)}</strong>
+            <p style={{ margin: '8px 0 0', color: '#526981', fontSize: '0.85rem' }}>
+              Suma de comisiones de las ventas del período seleccionado. No equivale a utilidad neta ni necesariamente a dinero ya cobrado.
+              {unrecordedCommissions > 0 && ` Hay ${unrecordedCommissions} venta(s) sin comisión registrada, excluidas del acumulado.`}
+            </p>
+          </div>
           <p style={{ margin: '0 0 16px', color: '#6b7280', fontSize: '0.9rem' }}>
             El resumen muestra ventas y pagos registrados; no calcula utilidad neta porque no incluye costos o gastos.
           </p>
@@ -1310,6 +1340,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   <th style={{ padding: '14px' }}>RUTA</th>
                   <th style={{ padding: '14px' }}>MÉTODO DE PAGO</th>
                   <th style={{ padding: '14px' }}>VALOR VENDIDO</th>
+                  <th style={{ padding: '14px' }}>COMISIÓN</th>
                   <th style={{ padding: '14px' }}>RECIBIDO</th>
                   <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
                   <th style={{ padding: '14px' }}>ESTADO</th>
@@ -1317,7 +1348,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               </thead>
               <tbody>
                 {filteredSales.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>No hay ventas registradas en este período.</td></tr>
+                  <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>No hay ventas registradas en este período.</td></tr>
                 ) : filteredSales.map(booking => (
                   <tr key={booking.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '14px' }}>{formatDisplayDate(booking.purchaseDate)}</td>
@@ -1325,6 +1356,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     <td style={{ padding: '14px' }}>{getBookingRoute(booking)}</td>
                     <td style={{ padding: '14px' }}>{booking.paymentMethod}</td>
                     <td style={{ padding: '14px' }}>{formatCurrency(booking.totalValue)}</td>
+                    <td style={{ padding: '14px', color: '#1e40af', fontWeight: 'bold' }}>{booking.commissionAmount == null ? 'Sin registrar' : formatCurrency(booking.commissionAmount)}</td>
                     <td style={{ padding: '14px', color: '#16a34a' }}>{formatCurrency(Number(booking.paidAmount) || 0)}</td>
                     <td style={{ padding: '14px', color: (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0) > 0 ? '#d97706' : '#16a34a' }}>
                       {formatCurrency(Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)))}
@@ -2019,6 +2051,22 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     setNewBooking({ ...newBooking, totalValue, paidAmount: newBooking.paymentStatus === 'PAGADO' ? numericTotalValue : Math.min(Number(newBooking.paidAmount) || 0, numericTotalValue) });
                     }} style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }} />
                   </div>
+                </div>
+                <div>
+                  <label htmlFor="admin-commission-amount" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>
+                    Comisión cobrada al cliente (COP){completingQuote ? ' *' : ''}
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: '#fff' }}>
+                    <span style={{ paddingLeft: '8px', color: '#374151', fontWeight: 'bold' }}>$</span>
+                    <input id="admin-commission-amount" type="text" inputMode="numeric" maxLength={13}
+                      required={completingQuote}
+                      value={formatAmountInput(newBooking.commissionAmount)}
+                      onChange={e => setNewBooking(current => ({ ...current, commissionAmount: parseAmountInput(e.target.value) }))}
+                      placeholder="Escribe la comisión"
+                      style={{ width: '100%', padding: '8px', border: 'none', outline: 'none' }}
+                    />
+                  </div>
+                  <small style={{ color: '#64748b' }}>Valor variable para esta venta. No se suma automáticamente al valor total.</small>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Estado del Pago:</label>

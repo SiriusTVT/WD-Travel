@@ -56,6 +56,7 @@ export interface Booking {
   airline: string;
   paymentMethod: string;
   totalValue: number;
+  commissionAmount?: number;
   paymentStatus: string;
   paidAmount: number;
   paymentDueDate?: string;

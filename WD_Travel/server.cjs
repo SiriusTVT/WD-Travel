@@ -1181,9 +1181,25 @@ app.get(['/api/sales', '/api/purchases'], requireAdministrator, async (request, 
   }
 });
 
+function isValidCommission(value) {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 0
+    && value <= 1000000000;
+}
+
 // Registrar compra / mover cotización al esquema de ventas_realizadas
 app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, async (request, response) => {
-  const { quoteId, ...saleData } = request.body;
+  const { quoteId, ...saleData } = request.body || {};
+
+  if (saleData && Object.hasOwn(saleData, 'commissionAmount') && !isValidCommission(saleData.commissionAmount)) {
+    response.status(400).json({ error: 'La comisión debe ser un valor entero válido en COP, entre 0 y 1.000.000.000.' });
+    return;
+  }
+  if (quoteId && !isValidCommission(saleData?.commissionAmount)) {
+    response.status(400).json({ error: 'Debes registrar la comisión manual al completar una cotización.' });
+    return;
+  }
 
   if (
     !saleData ||
@@ -1257,6 +1273,10 @@ app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, requireClientLoc
   try {
     const id = request.params.id;
     const { _id, ...updateData } = request.body;
+    if (Object.hasOwn(updateData, 'commissionAmount') && !isValidCommission(updateData.commissionAmount)) {
+      response.status(400).json({ error: 'La comisión debe ser un valor entero válido en COP, entre 0 y 1.000.000.000.' });
+      return;
+    }
     const result = await salesCollection.updateOne(
       buildIdFilter(id),
       { $set: { ...protectBookingFields(updateData), updatedAt: new Date() } }
