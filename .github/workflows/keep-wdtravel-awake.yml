@@ -1,0 +1,22 @@
+name: Keep WDTravel responsive
+
+on:
+  schedule:
+    # Every 10 minutes (UTC). GitHub may delay scheduled executions.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping lightweight WDTravel health endpoint
+        run: |
+          curl --fail --silent --show-error --location \\
+            --connect-timeout 10 --max-time 90 \\
+            --retry 2 --retry-delay 5 \\
+            'https://wd-travel.onrender.com/health'
