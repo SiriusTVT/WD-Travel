@@ -91,6 +91,29 @@ app.get('/health', (_request, response) => {
   response.status(200).json({ status: 'ok' });
 });
 
+// In-memory, bounded HTTP telemetry. Never record request bodies, query strings or client identifiers.
+const monitorStartedAt = Date.now();
+const monitorRecentErrors = [];
+let monitorRequestCount = 0;
+let monitorServerErrors = 0;
+app.use((request, response, next) => {
+  const startedAt = Date.now();
+  response.on('finish', () => {
+    if (request.path.startsWith('/health') || request.path.startsWith('/api/admin/system-status')) return;
+    monitorRequestCount += 1;
+    if (response.statusCode >= 500) {
+      monitorServerErrors += 1;
+      monitorRecentErrors.push({
+        at: new Date().toISOString(),
+        status: response.statusCode,
+        durationMs: Date.now() - startedAt
+      });
+      if (monitorRecentErrors.length > 30) monitorRecentErrors.shift();
+    }
+  });
+  next();
+});
+
 function getAdminSessionSignature(payload) {
   return createHmac('sha256', ADMIN_SESSION_SECRET)
     .update(payload)
@@ -213,6 +236,56 @@ function requireRoles(...allowedRoles) {
 
 const requireAdmin = requireRoles('admin', 'advisor');
 const requireAdministrator = requireRoles('admin');
+
+// Shallow readiness: checks the database without modifying any documents.
+app.get('/health/ready', async (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  try {
+    await Promise.race([
+      mongoClient.db().command({ ping: 1 }),
+      new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+    ]);
+    response.status(200).json({ status: 'ready' });
+  } catch (_error) {
+    response.status(503).json({ status: 'unavailable' });
+  }
+});
+
+// Protected diagnostics: only administrators can inspect internal component status.
+app.get('/api/admin/system-status', requireAdministrator, async (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  const inspect = async (name, work) => {
+    const started = Date.now();
+    try {
+      await Promise.race([
+        work(),
+        new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+      ]);
+      return { name, status: 'ok', latencyMs: Date.now() - started };
+    } catch (_error) {
+      return { name, status: 'error', latencyMs: Date.now() - started };
+    }
+  };
+  const checks = await Promise.all([
+    inspect('mongodb', () => mongoClient.db().command({ ping: 1 })),
+    inspect('quotes', () => quotesCollection.findOne({}, { projection: { _id: 1 } })),
+    inspect('purchases', () => salesCollection.findOne({}, { projection: { _id: 1 } }))
+  ]);
+  const memory = process.memoryUsage();
+  response.status(200).json({
+    status: checks.every(check => check.status === 'ok') ? 'healthy' : 'degraded',
+    checkedAt: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    memoryMb: {
+      rss: Math.round(memory.rss / 1048576),
+      heapUsed: Math.round(memory.heapUsed / 1048576)
+    },
+    requestsSinceStart: monitorRequestCount,
+    serverErrorsSinceStart: monitorServerErrors,
+    recentErrors: monitorRecentErrors.slice(-10).reverse(),
+    checks
+  });
+});
 
 function getDocumentNumberHash(value) {
   const normalized = String(value).replace(/[^a-z\d]/gi, '').toUpperCase();
