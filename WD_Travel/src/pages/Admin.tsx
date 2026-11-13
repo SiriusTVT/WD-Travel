@@ -117,7 +117,19 @@ interface AdminProps {
 }
 
 export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => {
-  const [activeView, setActiveView] = useState<'quotes' | 'sentQuotes' | 'purchases' | 'sales' | 'deposits'>('quotes');
+  const [activeView, setActiveView] = useState<'quotes' | 'sentQuotes' | 'purchases' | 'sales' | 'deposits' | 'system'>('quotes');
+  const [systemStatus, setSystemStatus] = useState<{
+    status: string;
+    checkedAt: string;
+    uptimeSeconds: number;
+    memoryMb: { rss: number; heapUsed: number };
+    requestsSinceStart: number;
+    serverErrorsSinceStart: number;
+    recentErrors: { at: string; status: number; durationMs: number }[];
+    checks: { name: string; status: string; latencyMs: number }[];
+  } | null>(null);
+  const [systemError, setSystemError] = useState('');
+  const [systemLoading, setSystemLoading] = useState(false);
   const [salesPeriod, setSalesPeriod] = useState<'all' | 'month' | 'year'>('all');
   const [selectedSalesMonth, setSelectedSalesMonth] = useState(() => getLocalDateString().slice(0, 7));
   const [selectedSalesYear, setSelectedSalesYear] = useState(() => getLocalDateString().slice(0, 4));
@@ -330,6 +342,31 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       void fetchQuotes();
     }
   }, [activeView, fetchPurchases, fetchQuotes, role]);
+
+  useEffect(() => {
+    if (activeView !== 'system' || role !== 'admin') return;
+    let cancelled = false;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      setSystemLoading(true);
+      try {
+        const response = await fetch('/api/admin/system-status', { cache: 'no-store' });
+        if (!response.ok) throw new Error('No se pudo consultar el diagnóstico del servidor.');
+        const data = await response.json();
+        if (!cancelled) {
+          setSystemStatus(data);
+          setSystemError('');
+        }
+      } catch (error) {
+        if (!cancelled) setSystemError(error instanceof Error ? error.message : 'Error consultando el servidor');
+      } finally {
+        if (!cancelled) setSystemLoading(false);
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { void refresh(); }, 30_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [activeView, role]);
 
   // Mantener sincronizadas las vistas y el historial cuando otra persona cambia un registro.
   useEffect(() => {
@@ -1142,10 +1179,58 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
         >
           Clientes abonados ({depositPurchases.length})
         </button>}
+        {role === 'admin' && <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'system'}
+          onClick={() => setActiveView('system')}
+          style={{ padding: '12px 18px', border: 'none', borderBottom: activeView === 'system' ? '3px solid #E3B31D' : '3px solid transparent', background: 'transparent', color: activeView === 'system' ? '#2D60A8' : '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          Estado del sistema
+        </button>}
       </div>
 
       {/* Tabla estilo Excel */}
-      {activeView === 'sales' ? (
+      {activeView === 'system' && role === 'admin' ? (
+        <section className="system-monitor" aria-label="Estado del sistema">
+          <div className="system-monitor__heading">
+            <div>
+              <h3>Estado del sistema WDTravel</h3>
+              <p>Comprobaciones de solo lectura. Actualización cada 30 segundos mientras esta pestaña está visible.</p>
+            </div>
+            <span className="system-monitor__badge">{systemLoading ? 'Consultando…' : systemError ? 'Sin conexión' : systemStatus?.status === 'healthy' ? 'Operativo' : systemStatus ? 'Degradado' : 'Sin datos'}</span>
+          </div>
+          {systemError && <p role="alert" className="system-monitor__error">{systemError}</p>}
+          {systemStatus ? (
+            <>
+              <div className="system-monitor__metrics">
+                <div><span>Tiempo activo</span><strong>{Math.floor(systemStatus.uptimeSeconds / 3600)} h {Math.floor(systemStatus.uptimeSeconds % 3600 / 60)} min</strong></div>
+                <div><span>Memoria RSS</span><strong>{systemStatus.memoryMb.rss} MB</strong></div>
+                <div><span>Peticiones desde el arranque</span><strong>{systemStatus.requestsSinceStart}</strong></div>
+                <div><span>Errores HTTP 5xx desde el arranque</span><strong>{systemStatus.serverErrorsSinceStart}</strong></div>
+              </div>
+              <h4>Dependencias críticas</h4>
+              <div className="system-monitor__checks">
+                {systemStatus.checks.map(check => (
+                  <div key={check.name} className="system-monitor__check">
+                    <strong>{check.name === 'mongodb' ? 'MongoDB Atlas' : check.name === 'quotes' ? 'Cotizaciones' : 'Compras realizadas'}</strong>
+                    <span>{check.status === 'ok' ? '✓ Disponible' : '⚠ Fallo'} · {check.latencyMs} ms</span>
+                  </div>
+                ))}
+              </div>
+              <h4>Errores HTTP recientes</h4>
+              {systemStatus.recentErrors.length ? (
+                <ul className="system-monitor__errors">
+                  {systemStatus.recentErrors.map((error, index) => (
+                    <li key={index}>{new Date(error.at).toLocaleString('es-CO')} · HTTP {error.status} · {error.durationMs} ms</li>
+                  ))}
+                </ul>
+              ) : <p>No se han registrado errores HTTP 5xx desde el último reinicio.</p>}
+              <p className="system-monitor__note">Última comprobación: {new Date(systemStatus.checkedAt).toLocaleString('es-CO')}. Las métricas se reinician cuando Render reinicia el servidor. La lectura correcta no garantiza todos los flujos de negocio.</p>
+            </>
+          ) : <p>Esperando el primer diagnóstico…</p>}
+        </section>
+      ) : activeView === 'sales' ? (
         <section aria-label="Resumen de ventas e ingresos">
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: '12px', padding: '18px', marginBottom: '18px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
             <div>
