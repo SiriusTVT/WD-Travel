@@ -29,6 +29,7 @@ const CLIENT_SOURCE_LABELS: Record<string, string> = {
   facebook: 'Facebook',
   website: 'Página web',
   referral: 'Referido',
+  in_person: 'Presencial',
   other: 'Otro'
 };
 const MANUAL_CLIENT_SOURCES = Object.entries(CLIENT_SOURCE_LABELS).filter(([value]) => value !== 'website');

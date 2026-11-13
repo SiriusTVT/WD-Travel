@@ -972,7 +972,7 @@ app.get('/api/client-history/:cedula', requireAdmin, async (request, response) =
   }
 });
 
-const CLIENT_SOURCES = new Set(['whatsapp', 'instagram', 'facebook', 'website', 'referral', 'other']);
+const CLIENT_SOURCES = new Set(['whatsapp', 'instagram', 'facebook', 'website', 'referral', 'in_person', 'other']);
 const isValidClientSource = value => typeof value === 'string' && CLIENT_SOURCES.has(value);
 const isValidManualClientSource = value => isValidClientSource(value) && value !== 'website';
 

@@ -28,7 +28,7 @@ export interface Booking {
   quoteDate?: string;
   quoteStatus?: 'PENDING' | 'SENT' | 'PURCHASED';
   originQuoteId?: string;
-  source?: 'whatsapp' | 'instagram' | 'facebook' | 'website' | 'referral' | 'other';
+  source?: 'whatsapp' | 'instagram' | 'facebook' | 'website' | 'referral' | 'in_person' | 'other';
   sentAt?: string;
   advisorEmail?: string;
   purchaseDate: string;
