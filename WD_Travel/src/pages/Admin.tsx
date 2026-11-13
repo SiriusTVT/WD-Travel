@@ -921,7 +921,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       }]
       : paymentHistory;
     // Empty commission inputs are not persisted as strings; historical values remain unset.
-    const { commissionAmount: _draftCommission, ...bookingFields } = newBooking;
+    const { commissionAmount: _draftCommission, source: _draftSource, ...bookingFields } = newBooking;
     const bookingData = {
       ...bookingFields,
       paymentMethod: completingQuote && !PAYMENT_METHODS.includes(newBooking.paymentMethod)
@@ -931,6 +931,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       ...quoteData,
       totalValue,
       ...(commissionAmount !== undefined ? { commissionAmount } : {}),
+      ...(newBooking.source ? { source: newBooking.source } : {}),
       paymentStatus: finalPaymentStatus,
       paidAmount: finalPaidAmount,
       paymentDueDate: finalPaymentStatus === 'ABONADO' ? newBooking.paymentDueDate : '',
