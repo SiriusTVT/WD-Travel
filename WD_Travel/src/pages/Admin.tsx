@@ -454,7 +454,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     paymentMethod: 'TRANSFERENCIA',
     totalValue: 0 as number | '',
     commissionAmount: '' as number | '',
-    source: '' as string,
+    source: '' as Booking['source'] | '',
     paymentStatus: 'PENDIENTE',
     paidAmount: 0 as number | '',
     paymentDueDate: ''
@@ -491,7 +491,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentMethod: 'TRANSFERENCIA',
       totalValue: 0 as number | '',
       commissionAmount: '' as number | '',
-      source: '' as string,
+      source: '' as Booking['source'] | '',
       paymentStatus: 'PENDIENTE',
       paidAmount: 0 as number | '',
       paymentDueDate: ''
@@ -1792,7 +1792,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                 <label htmlFor="admin-client-source" style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '5px' }}>¿De dónde llegó el cliente?</label>
                 <select id="admin-client-source" value={newBooking.source}
                   required={!editingBookingId}
-                  onChange={event => setNewBooking(current => ({ ...current, source: event.target.value }))}
+                  onChange={event => setNewBooking(current => ({ ...current, source: event.target.value as Booking['source'] }))}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
                 >
                   <option value="">Selecciona un canal</option>
