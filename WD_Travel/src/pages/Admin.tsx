@@ -23,6 +23,18 @@ import {
   normalizePhoneNumber
 } from '../formValidation';
 
+const CLIENT_SOURCE_LABELS: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  website: 'Página web',
+  referral: 'Referido',
+  other: 'Otro'
+};
+const MANUAL_CLIENT_SOURCES = Object.entries(CLIENT_SOURCE_LABELS).filter(([value]) => value !== 'website');
+const getClientSourceLabel = (source?: string) =>
+  source ? (CLIENT_SOURCE_LABELS[source] || 'Sin identificar') : 'Sin registrar';
+
 const getNameParts = (firstName = '', lastName = '', fullName = '') => {
   const [legacyFirstName = '', ...legacyLastName] = fullName.trim().split(/\s+/);
   return {
@@ -443,6 +455,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
     paymentMethod: 'TRANSFERENCIA',
     totalValue: 0 as number | '',
     commissionAmount: '' as number | '',
+    source: '' as Booking['source'] | '',
     paymentStatus: 'PENDIENTE',
     paidAmount: 0 as number | '',
     paymentDueDate: ''
@@ -479,6 +492,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentMethod: 'TRANSFERENCIA',
       totalValue: 0 as number | '',
       commissionAmount: '' as number | '',
+      source: '' as Booking['source'] | '',
       paymentStatus: 'PENDIENTE',
       paidAmount: 0 as number | '',
       paymentDueDate: ''
@@ -535,6 +549,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       paymentMethod: booking.paymentMethod,
       totalValue: booking.totalValue,
       commissionAmount: booking.commissionAmount ?? '',
+      source: booking.source || '',
       paymentStatus: booking.paymentStatus,
       paidAmount: booking.paidAmount,
       paymentDueDate: booking.paymentDueDate || ''
@@ -708,6 +723,10 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
       return;
     }
 
+    if (!editingBookingId && !MANUAL_CLIENT_SOURCES.some(([value]) => value === newBooking.source)) {
+      window.alert('Selecciona de dónde llegó el cliente.');
+      return;
+    }
     const totalValue = Number(newBooking.totalValue);
     const enteredCommission = newBooking.commissionAmount;
     const commissionAmount = enteredCommission === '' ? undefined : Number(enteredCommission);
@@ -1064,6 +1083,17 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
   const salesTotal = filteredSales.reduce((total, booking) => total + (Number(booking.totalValue) || 0), 0);
   const salesCommissions = filteredSales.reduce((total, booking) => total + (booking.commissionAmount ?? 0), 0);
   const unrecordedCommissions = filteredSales.filter(booking => booking.commissionAmount == null).length;
+  const salesByChannel = Object.entries(
+    filteredSales.reduce<Record<string, { count: number; sold: number; commissions: number }>>((acc, booking) => {
+      const channel = booking.source && CLIENT_SOURCE_LABELS[booking.source] ? booking.source : 'unknown';
+      const entry = acc[channel] || { count: 0, sold: 0, commissions: 0 };
+      entry.count += 1;
+      entry.sold += Number(booking.totalValue) || 0;
+      entry.commissions += Number(booking.commissionAmount) || 0;
+      acc[channel] = entry;
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1].sold - a[1].sold);
   const salesCollected = filteredSales.reduce((total, booking) => total + (Number(booking.paidAmount) || 0), 0);
   const salesBalance = filteredSales.reduce(
     (total, booking) => total + Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)),
@@ -1327,6 +1357,29 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               {unrecordedCommissions > 0 && ` Hay ${unrecordedCommissions} venta(s) sin comisión registrada, excluidas del acumulado.`}
             </p>
           </div>
+          <div style={{ overflowX: 'auto', marginBottom: '18px', padding: '16px', borderRadius: '12px', background: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+            <h3 style={{ marginTop: 0, color: '#2D60A8' }}>Ventas por canal de origen</h3>
+            <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Resumen del período seleccionado. Las comisiones no registradas no se contabilizan.</p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead><tr>
+                <th style={{ padding: '10px' }}>CANAL</th>
+                <th style={{ padding: '10px' }}>VENTAS</th>
+                <th style={{ padding: '10px' }}>TOTAL VENDIDO</th>
+                <th style={{ padding: '10px' }}>COMISIONES</th>
+              </tr></thead>
+              <tbody>
+                {salesByChannel.map(([channel, values]) => (
+                  <tr key={channel} style={{ borderTop: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '10px' }}>{channel === 'unknown' ? 'Sin registrar' : getClientSourceLabel(channel)}</td>
+                    <td style={{ padding: '10px' }}>{values.count}</td>
+                    <td style={{ padding: '10px' }}>{formatCurrency(values.sold)}</td>
+                    <td style={{ padding: '10px' }}>{formatCurrency(values.commissions)}</td>
+                  </tr>
+                ))}
+                {!salesByChannel.length && <tr><td colSpan={4} style={{ padding: '12px' }}>No hay ventas en el período seleccionado.</td></tr>}
+              </tbody>
+            </table>
+          </div>
           <p style={{ margin: '0 0 16px', color: '#6b7280', fontSize: '0.9rem' }}>
             El resumen muestra ventas y pagos registrados; no calcula utilidad neta porque no incluye costos o gastos.
           </p>
@@ -1341,6 +1394,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                   <th style={{ padding: '14px' }}>MÉTODO DE PAGO</th>
                   <th style={{ padding: '14px' }}>VALOR VENDIDO</th>
                   <th style={{ padding: '14px' }}>COMISIÓN</th>
+                  <th style={{ padding: '14px' }}>ORIGEN</th>
                   <th style={{ padding: '14px' }}>RECIBIDO</th>
                   <th style={{ padding: '14px' }}>SALDO PENDIENTE</th>
                   <th style={{ padding: '14px' }}>ESTADO</th>
@@ -1348,7 +1402,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
               </thead>
               <tbody>
                 {filteredSales.length === 0 ? (
-                  <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>No hay ventas registradas en este período.</td></tr>
+                  <tr><td colSpan={10} style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>No hay ventas registradas en este período.</td></tr>
                 ) : filteredSales.map(booking => (
                   <tr key={booking.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '14px' }}>{formatDisplayDate(booking.purchaseDate)}</td>
@@ -1357,6 +1411,7 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     <td style={{ padding: '14px' }}>{booking.paymentMethod}</td>
                     <td style={{ padding: '14px' }}>{formatCurrency(booking.totalValue)}</td>
                     <td style={{ padding: '14px', color: '#1e40af', fontWeight: 'bold' }}>{booking.commissionAmount == null ? 'Sin registrar' : formatCurrency(booking.commissionAmount)}</td>
+                    <td style={{ padding: '14px' }}>{getClientSourceLabel(booking.source)}</td>
                     <td style={{ padding: '14px', color: '#16a34a' }}>{formatCurrency(Number(booking.paidAmount) || 0)}</td>
                     <td style={{ padding: '14px', color: (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0) > 0 ? '#d97706' : '#16a34a' }}>
                       {formatCurrency(Math.max(0, (Number(booking.totalValue) || 0) - (Number(booking.paidAmount) || 0)))}
@@ -1730,10 +1785,23 @@ export const Admin: React.FC<AdminProps> = ({ bookings, setBookings, role }) => 
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
                   >
                     <option value="QUOTE">Cotización para seguimiento</option>
-                    <option value="PURCHASE">Compra realizada por WhatsApp</option>
+                    <option value="PURCHASE">Compra realizada</option>
                   </select>
                 </div>
               )}
+              <div>
+                <label htmlFor="admin-client-source" style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '5px' }}>¿De dónde llegó el cliente?</label>
+                <select id="admin-client-source" value={newBooking.source}
+                  required={!editingBookingId}
+                  onChange={event => setNewBooking(current => ({ ...current, source: event.target.value as Booking['source'] }))}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                >
+                  <option value="">Selecciona un canal</option>
+                  {MANUAL_CLIENT_SOURCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  {newBooking.source === 'website' && <option value="website" disabled>Página web (origen automático)</option>}
+                </select>
+                <small style={{ color: '#64748b' }}>La página web se identifica automáticamente desde el formulario público.</small>
+              </div>
               {manualRecordType === 'PURCHASE' && !editingBookingId && !completingQuote && !editingQuote && (
                 <div>
                   <label htmlFor="admin-purchase-date" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>Fecha de compra:</label>
