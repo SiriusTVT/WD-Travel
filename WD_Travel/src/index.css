@@ -2080,52 +2080,124 @@ select:focus {
   }
 }
 
-/* Compact Instagram reel carousel: preserve the original video column. */
+/* WD Travel presentation: selectable, overlapping playing-card deck. */
 .presentation-reels {
   width: 100%;
   min-width: 0;
-  max-width: 440px;
+  max-width: 400px;
   margin: 0 auto;
 }
-.presentation-reels .presentation-video {
+.presentation-card-deck {
+  position: relative;
+  isolation: isolate;
   width: 100%;
-  max-width: 440px;
-  touch-action: pan-y;
-}
-.presentation-reels-controls {
+  height: 390px;
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 18px;
-  margin-top: 12px;
+  justify-content: center;
+  overflow: visible;
 }
-.presentation-reel-arrow {
+.presentation-choice-card {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: min(57%, 215px);
+  height: 290px;
+  padding: 16px;
+  border: 3px solid #fff;
+  border-radius: 19px;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 18px 38px rgba(13, 42, 82, .26);
+  transition: transform .25s ease, box-shadow .25s ease, filter .25s ease;
+  transform-origin: 50% 75%;
+}
+.presentation-choice-card--1 {
+  z-index: 1;
+  background: linear-gradient(160deg, rgba(10, 44, 94, .2), rgba(9, 31, 67, .92)), url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80') center / cover;
+  transform: translateX(-65%) rotate(-22.5deg);
+}
+.presentation-choice-card--2 {
+  z-index: 2;
+  background: linear-gradient(155deg, rgba(12, 83, 142, .12), rgba(8, 49, 92, .91)), url('https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=600&q=80') center / cover;
+  transform: translateX(-35%) rotate(22.5deg);
+}
+.presentation-choice-card--1:hover,
+.presentation-choice-card--1:focus-visible { transform: translateX(-77%) translateY(-10px) rotate(-22.5deg); }
+.presentation-choice-card--2:hover,
+.presentation-choice-card--2:focus-visible { transform: translateX(-23%) translateY(-10px) rotate(22.5deg); }
+.presentation-choice-card:hover,
+.presentation-choice-card:focus-visible {
+  z-index: 3;
+  box-shadow: 0 24px 45px rgba(13, 42, 82, .35);
+}
+.presentation-choice-card:focus-visible { outline: 3px solid #f4bd24; outline-offset: 4px; }
+.presentation-choice-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.presentation-choice-card__play {
   display: grid;
+  width: 62px;
+  height: 62px;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid #d9e3ef;
+  align-self: center;
+  border: 2px solid rgba(255, 255, 255, .9);
   border-radius: 50%;
-  background: white;
-  color: #102f59;
-  font-size: 24px;
-  line-height: 1;
+  background: rgba(255, 255, 255, .2);
+  font-size: 25px;
+  backdrop-filter: blur(5px);
+}
+.presentation-choice-card__bottom { display: flex; flex-direction: column; gap: 5px; }
+.presentation-choice-card__bottom strong { font-size: 1.1rem; line-height: 1.2; }
+.presentation-choice-card__bottom small { font-size: .75rem; }
+.presentation-card-deck__hint {
+  position: absolute;
+  bottom: 3px;
+  color: #526981;
+  font-size: .87rem;
+  font-weight: 700;
+  text-align: center;
+}
+.presentation-player { width: 100%; }
+.presentation-player__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #526981;
+  font-size: .8rem;
+}
+.presentation-player__back {
+  padding: 8px 10px;
+  border: 1px solid #d9e3ef;
+  border-radius: 8px;
+  color: #173964;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
   cursor: pointer;
 }
-.presentation-reel-arrow:hover, .presentation-reel-arrow:focus-visible {
-  background: #edf5fd;
-  border-color: #2468b3;
+.presentation-player__back:hover,
+.presentation-player__back:focus-visible { background: #edf5fd; }
+.presentation-player__external {
+  display: block;
+  margin-top: 9px;
+  color: #2468b3;
+  font-size: .83rem;
+  text-align: center;
 }
-.presentation-reels-count {
-  font-size: .84rem;
-  font-weight: 700;
-  color: #526981;
-}
-@media (max-width: 600px) {
-  .presentation-reels { max-width: 100%; }
-}
-
-/* Instagram content stays in its own iframe, avoiding React/Instagram DOM conflicts. */
+.presentation-reels .presentation-video { width: 100%; max-width: 400px; }
 .presentation-reels .presentation-reel-iframe {
   display: block;
   width: 100%;
@@ -2134,5 +2206,10 @@ select:focus {
   background: #fff;
 }
 @media (max-width: 600px) {
+  .presentation-card-deck { height: 350px; }
+  .presentation-choice-card { height: 255px; width: min(56%, 195px); }
   .presentation-reels .presentation-reel-iframe { height: 540px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .presentation-choice-card { transition: none; }
 }
