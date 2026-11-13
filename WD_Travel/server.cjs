@@ -972,6 +972,9 @@ app.get('/api/client-history/:cedula', requireAdmin, async (request, response) =
   }
 });
 
+const CLIENT_SOURCES = new Set(['whatsapp', 'instagram', 'facebook', 'website', 'referral', 'other']);
+const isValidClientSource = value => typeof value === 'string' && CLIENT_SOURCES.has(value);
+
 // Consultar cotizaciones pendientes
 app.get('/api/quotes', requireAdmin, async (request, response) => {
   try {
@@ -1018,7 +1021,7 @@ app.post('/api/quotes/manual', requireAdmin, requireClientLock, async (request, 
     const savedQuote = protectBookingFields({
       ...fields,
       id,
-      source: 'whatsapp',
+      source: isValidClientSource(fields.source) ? fields.source : 'whatsapp',
       quoteStatus: 'PENDING',
       quoteDate: fields.quoteDate || new Date().toISOString().split('T')[0],
       advisorEmail: request.authUser.email,
@@ -1073,6 +1076,7 @@ app.post('/api/quotes', async (request, response) => {
     const savedQuote = protectBookingFields({
       ...fields,
       id,
+      source: 'website',
       quoteStatus: 'PENDING',
       quoteDate: fields.quoteDate || createdAt.toISOString().split('T')[0],
       privacyAcceptedAt: createdAt,
@@ -1192,6 +1196,10 @@ function isValidCommission(value) {
 app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, async (request, response) => {
   const { quoteId, ...saleData } = request.body || {};
 
+  if (saleData && Object.hasOwn(saleData, 'source') && saleData.source !== '' && !isValidClientSource(saleData.source)) {
+    response.status(400).json({ error: 'El canal de origen es inválido.' });
+    return;
+  }
   if (saleData && Object.hasOwn(saleData, 'commissionAmount') && !isValidCommission(saleData.commissionAmount)) {
     response.status(400).json({ error: 'La comisión debe ser un valor entero válido en COP, entre 0 y 1.000.000.000.' });
     return;
@@ -1239,6 +1247,9 @@ app.post(['/api/sales', '/api/purchases'], requireAdmin, requireClientLock, asyn
       ...saleData,
       id,
       ...(targetQuoteId ? { originQuoteId: targetQuoteId } : {}),
+      source: isValidClientSource(saleData.source)
+        ? saleData.source
+        : isValidClientSource(sourceQuote?.source) ? sourceQuote.source : undefined,
       advisorEmail: saleData.advisorEmail || sourceQuote?.advisorEmail || request.authUser.email,
       purchaseDate: saleData.purchaseDate || new Date().toISOString().split('T')[0],
       paymentHistory: Array.isArray(saleData.paymentHistory)
@@ -1273,6 +1284,10 @@ app.put(['/api/sales/:id', '/api/purchases/:id'], requireAdmin, requireClientLoc
   try {
     const id = request.params.id;
     const { _id, ...updateData } = request.body;
+    if (Object.hasOwn(updateData, 'source') && updateData.source !== '' && !isValidClientSource(updateData.source)) {
+      response.status(400).json({ error: 'El canal de origen es inválido.' });
+      return;
+    }
     if (Object.hasOwn(updateData, 'commissionAmount') && !isValidCommission(updateData.commissionAmount)) {
       response.status(400).json({ error: 'La comisión debe ser un valor entero válido en COP, entre 0 y 1.000.000.000.' });
       return;
