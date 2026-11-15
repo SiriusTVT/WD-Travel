@@ -2,8 +2,8 @@ name: Keep WDTravel responsive
 
 on:
   schedule:
-    # Every 10 minutes (UTC). GitHub can delay scheduled runs.
-    - cron: '*/10 * * * *'
+    # Every 5 minutes (UTC). GitHub can delay scheduled runs.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
