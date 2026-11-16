@@ -367,7 +367,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
           </div>
         )}
         <div className="hero-content">
-          <span className="hero-eyebrow">W.D Travel · Agencia de viajes</span>
+          <span className="hero-eyebrow">WD Travel SAS · Agencia de viajes</span>
           <h1 id="hero-title" className="hero-title">El mundo es grande. <em>Tu viaje,</em> a tu medida.</h1>
           <p className="hero-description">Vacaciones, un nuevo comienzo en Europa o una escapada cerca de casa: te acompañamos en cada paso, antes, durante y después.</p>
           <div className="hero-actions">
