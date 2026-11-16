@@ -27,6 +27,42 @@ function App() {
   const isCreateCountRoute = normalizedPath === CREATE_COUNT_PATH;
   const isPrivacyRoute = normalizedPath === PRIVACY_PATH;
 
+  // Keep document metadata aligned with the active SPA route (including privacy/admin).
+  useEffect(() => {
+    const isPrivate = isAdminRoute || isCreateCountRoute;
+    const title = isPrivacyRoute
+      ? 'Política de privacidad | WD Travel SAS'
+      : isPrivate
+        ? 'Administración | WD Travel SAS'
+        : 'WD Travel SAS | Agencia de viajes y turismo en Colombia';
+    const description = isPrivacyRoute
+      ? 'Consulta la política de tratamiento de datos personales de WD Travel SAS.'
+      : 'Planea tu próximo viaje con WD Travel SAS. Descubre paquetes turísticos, vuelos, hoteles y asesoría personalizada para viajes nacionales e internacionales.';
+    const canonicalUrl = isPrivacyRoute
+      ? 'https://wdtravelsas.com/politica-de-privacidad'
+      : 'https://wdtravelsas.com/';
+
+    document.title = title;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', description);
+    document.querySelector('link[rel="canonical"]')?.setAttribute('href', canonicalUrl);
+    document.querySelector('meta[property="og:title"]')?.setAttribute('content', title);
+    document.querySelector('meta[property="og:description"]')?.setAttribute('content', description);
+    document.querySelector('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
+
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (isPrivate) {
+      if (!robots) {
+        robots = document.createElement('meta');
+        robots.name = 'robots';
+        document.head.appendChild(robots);
+      }
+      robots.content = 'noindex, nofollow';
+    } else {
+      robots?.remove();
+    }
+  }, [isAdminRoute, isCreateCountRoute, isPrivacyRoute]);
+
+
   const navigate = useCallback((path: string) => {
     window.history.pushState({}, '', path);
     setPathname(window.location.pathname);
