@@ -58,8 +58,9 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
   const reels = [
-    { url: 'https://www.instagram.com/reel/De0YNANsTy3/' },
-    { url: 'https://www.instagram.com/reel/DflZ6ASJc6R/' }
+    { url: 'https://www.instagram.com/reel/De0YNANsTy3/', title: 'Conócenos' },
+    { url: 'https://www.instagram.com/reel/DflZ6ASJc6R/', title: 'Nuestra experiencia' },
+    { url: 'https://www.instagram.com/reel/Df2Q85Ahk8N/', title: 'Más de WD Travel' }
   ];
   const [activeReel, setActiveReel] = useState<number | null>(null);
 
@@ -456,7 +457,7 @@ export const Home: React.FC<HomeProps> = ({ onBookingSubmit }) => {
                   <span className="presentation-choice-card__top">WD TRAVEL <span>0{index + 1}</span></span>
                   <span className="presentation-choice-card__play" aria-hidden="true">▶</span>
                   <span className="presentation-choice-card__bottom">
-                    <strong>{index === 0 ? 'Conócenos' : 'Nuestra experiencia'}</strong>
+                    <strong>{reel.title}</strong>
                     <small>Seleccionar video</small>
                   </span>
                 </button>
