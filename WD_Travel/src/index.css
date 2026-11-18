@@ -2119,17 +2119,24 @@ select:focus {
 .presentation-choice-card--1 {
   z-index: 1;
   background: linear-gradient(160deg, rgba(10, 44, 94, .2), rgba(9, 31, 67, .92)), url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80') center / cover;
-  transform: translateX(-65%) rotate(-22.5deg);
+  transform: translateX(-83%) rotate(-23deg);
 }
 .presentation-choice-card--2 {
-  z-index: 2;
+  z-index: 3;
   background: linear-gradient(155deg, rgba(12, 83, 142, .12), rgba(8, 49, 92, .91)), url('https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=600&q=80') center / cover;
-  transform: translateX(-35%) rotate(22.5deg);
+  transform: translateX(-50%) rotate(0deg);
+}
+.presentation-choice-card--3 {
+  z-index: 2;
+  background: linear-gradient(155deg, rgba(10, 50, 93, .12), rgba(8, 37, 75, .91)), url('https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=600&q=80') center / cover;
+  transform: translateX(-17%) rotate(23deg);
 }
 .presentation-choice-card--1:hover,
-.presentation-choice-card--1:focus-visible { transform: translateX(-77%) translateY(-10px) rotate(-22.5deg); }
+.presentation-choice-card--1:focus-visible { transform: translateX(-92%) translateY(-10px) rotate(-23deg); }
 .presentation-choice-card--2:hover,
-.presentation-choice-card--2:focus-visible { transform: translateX(-23%) translateY(-10px) rotate(22.5deg); }
+.presentation-choice-card--2:focus-visible { transform: translateX(-50%) translateY(-12px) rotate(0deg); }
+.presentation-choice-card--3:hover,
+.presentation-choice-card--3:focus-visible { transform: translateX(-8%) translateY(-10px) rotate(23deg); }
 .presentation-choice-card:hover,
 .presentation-choice-card:focus-visible {
   z-index: 3;
